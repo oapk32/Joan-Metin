@@ -56,8 +56,10 @@ export async function createCharacter(pool, accountId, { name, cls }) {
   try {
     await db.query('BEGIN');
     began = true;
-    // Lock account to serialize character creations (including slot limit).
-    const owner = await db.query('SELECT id FROM accounts WHERE id = $1 FOR UPDATE', [accountId]);
+    // Serialize creations per account without requiring UPDATE rights on accounts.
+    // Negative IDs keep this lock namespace separate from positive migration locks.
+    await db.query('SELECT pg_advisory_xact_lock(-($1::bigint))', [accountId]);
+    const owner = await db.query('SELECT id FROM accounts WHERE id = $1', [accountId]);
     if (!owner.rowCount) throw new CharacterError('invalid_owner');
     const count = await db.query('SELECT COUNT(*)::integer AS count FROM characters WHERE account_id = $1', [accountId]);
     if (count.rows[0].count >= MAX_CHARACTERS) throw new CharacterError('limit');
