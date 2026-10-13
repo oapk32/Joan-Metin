@@ -1,12 +1,12 @@
 {
   "name": "joan-multiplayer-prototype",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Local multiplayer movement proof-of-concept for Joan Metiny",
+  "description": "Local Joan Metiny multiplayer presence proof-of-concept",
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js"
+    "check": "node --check index.js && node --check ../client/js/mp-bridge.js && node --check ../client/js/game.js"
   },
   "dependencies": {
     "ws": "^8.18.3"
