@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 
-const HOST = '127.0.0.1'; // local-only proof of concept
+const HOST = process.env.JOAN_BIND_HOST || '127.0.0.1'; // bind to Tailscale IP only when explicitly requested
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const WIDTH = 900;
@@ -52,7 +52,7 @@ const joanPlayers = new Map();
 function connectJoan(socket) {
   if (joanPlayers.size >= MAX_PLAYERS) { socket.close(1013, 'Server full'); return; }
   const player = {
-    id: 'j' + nextId++, name: 'Hráč', x: 0, y: 0, room: 0,
+    id: 'j' + nextId++, name: 'Hráč', x: 0, y: 0, room: 0, dir: 0, cls: 'warrior',
     active: false, lastUpdate: 0
   };
   joanPlayers.set(socket, player);
@@ -72,6 +72,8 @@ function connectJoan(socket) {
     player.active = message.active === true;
     if (player.active) { player.x = message.x; player.y = message.y; }
     player.name = String(message.name || 'Hráč').replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 24);
+    player.dir = Number.isFinite(message.dir) && Math.abs(message.dir) < 100 ? message.dir : 0;
+    player.cls = ['warrior', 'ninja', 'sura', 'shaman', 'lycan'].includes(message.cls) ? message.cls : 'warrior';
   });
   socket.on('close', () => joanPlayers.delete(socket));
 }
@@ -84,7 +86,7 @@ setInterval(() => {
     if (socket.readyState !== WebSocket.OPEN) continue;
     const sameRoom = all
       .filter(([, other]) => other.active && other.room === viewer.room)
-      .map(([, other]) => ({ id: other.id, name: other.name, x: other.x, y: other.y }));
+      .map(([, other]) => ({ id: other.id, name: other.name, x: other.x, y: other.y, dir: other.dir, cls: other.cls }));
     socket.send(JSON.stringify({
       type: 'joan-peers',
       count: viewer.active ? sameRoom.length : 0,
@@ -134,4 +136,4 @@ setInterval(() => {
   }
   broadcast({ type: 'snapshot', players: [...players.values()].map(({id, x, y}) => ({id, x, y})) });
 }, 50);
-server.listen(PORT, HOST, () => console.log('Joan multiplayer prototype: http://' + HOST + ':' + PORT));
+server.listen(PORT, HOST, () => console.log('Joan multiplayer prototype: http://' + HOST + ':' + PORT + '/joan/'));
