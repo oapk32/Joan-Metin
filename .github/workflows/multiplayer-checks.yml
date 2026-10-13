@@ -22,6 +22,8 @@ jobs:
       - name: Syntax validation
         working-directory: server
         run: npm run check
+      - name: Oracle operations scripts syntax
+        run: bash -n server/ops/joanctl.sh server/ops/backup-db.sh
       - name: Original release parity
         run: python scripts/verify.py
       - name: Multiplayer integration test
