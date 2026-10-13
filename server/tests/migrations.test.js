@@ -4,7 +4,7 @@ import { listMigrations, migrationProgram } from '../migrations/migrate.js';
 
 test('Migrations are versioned, additive and checksummed', () => {
   const files = listMigrations();
-  assert.deepEqual(files.map(f => f.version), [1, 2]);
+  assert.deepEqual(files.map(f => f.version), [1, 2, 3]);
   for (const file of files) {
     assert.match(file.checksum, /^[0-9a-f]{64}$/);
     assert.doesNotMatch(file.sql, /\b(DROP\s+TABLE|TRUNCATE\s+TABLE)\b/i);
