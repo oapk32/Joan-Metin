@@ -13,7 +13,7 @@ From the SSH console (user `opc`):
 
 ```bash
 cd ~/Joan-Metin-MP
-git pull --ff-only origin multiplayer-dev
+GIT_SSH_COMMAND='ssh -i ~/.ssh/joan_github -o IdentitiesOnly=yes' git pull --ff-only origin multiplayer-dev
 cd server
 npm install
 npm test
