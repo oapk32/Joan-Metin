@@ -1,30 +1,40 @@
-# Joan Metiny — multiplayer proof of concept
+# Joan Metiny — první online hráči ve světě v134
 
-Tato složka je **oddělený lokální test**, ne multiplayerová verze původního klienta v134.
+**Stav:** lokální prototyp. Mapa, lokální souboje a uložené postavy běží původním klientem v134. Online se pouze synchronizuje **pozice a jméno ostatních hráčů ve stejné oblasti**. Jejich podoba je zatím jednoduchý modrý symbol. Nejde zatím o bezpečný produkční multiplayer.
 
-## Windows: spuštění
-1. Nainstaluj Node.js LTS.
-2. V kořeni naklonovaného repozitáře spusť:
-   ```powershell
-   cd server
-   npm.cmd install
-   npm.cmd start
-   ```
-3. Otevři `http://127.0.0.1:3000` ve dvou záložkách/oknech. Pohyb WASD/šipky; jinak obě okna zobrazují stejné pozice.
-4. Ukončení: **Ctrl+C** v PowerShellu.
+## Aktualizace na Windows
+Zastav server pomocí **Ctrl+C** a spusť:
 
-Server naslouchá pouze na `127.0.0.1`, takže je zatím dostupný jen na daném PC. **Neotevírej port 3000 do internetu.**
+```powershell
+cd "$HOME\Downloads\Joan-Metin-MP"
+git pull origin multiplayer-dev
+cd server
+npm.cmd install
+npm.cmd start
+```
 
-## Co už funguje
-- WebSocket spojení klient–server a přidělené ID
-- Limit 30 připojení
-- Serverem řízený pohyb na testovací ploše a synchronizace 20× za sekundu
-- Odpojení hráčů
+Pak otevři:
+
+- **<http://127.0.0.1:3000/joan/>** — původní Joan v134 s online ukazateli ostatních hráčů
+- **<http://127.0.0.1:3000/>** — původní testovací plocha se dvěma kruhy
+
+Otestuj Joan v **jednom normálním a jednom anonymním okně** prohlížeče, vytvoř postavu v obou, aby jejich ukládání bylo oddělené, a nech obě ve stejné oblasti. Pohni s první postavou: ve druhém okně by se měl pohybovat modrý symbol se jménem postavy.
+
+Server naslouchá pouze na `127.0.0.1`; ostatní zařízení se zatím nepřipojí. **Neotevírej port 3000 do internetu.** Prototyp nemá přihlášení ani autorizaci a přijímá pozice od klienta.
+
+## Co funguje
+- WebSocket připojení a přidělení síťového ID
+- Původní testovací plocha: autoritativní pohyb a 20 Hz aktualizace
+- Klient v134: vlastní lokální pohyb a vykreslování, online přenos pozic do stejné oblasti ~8–10×/s
+- Jednoduché symboly ostatních hráčů, jejich jména a počet připojených postav v oblasti
+- Při běžném samostatném spuštění klienta se bridge sám neaktivuje
 
 ## Co zatím nefunguje
-- Připojení skutečného renderingu a herních systémů v134
-- Databáze PostgreSQL, účty, zabezpečené přihlášení
-- Boj, monstra, inventář, party, dungeon instance
-- Veřejný hosting, TLS, monitoring
+- Sdílené příšery, NPC stav, boj, HP, EXP, loot, inventář ani bossové
+- Serverově autoritativní pohyb v původním klientovi
+- Databáze PostgreSQL a skutečné online účty
+- Instance dungeonů a rozdílné realm stavy, bezpečné ukládání, TLS a veřejný hosting
+- Testy desítek současných hráčů
 
-Další krok: oddělit synchronizaci pohybu z prototypu a propojit se skutečným Canvas klientem v134.
+## Kontrola syntaxe/parity
+V kořeni projektu spusť `python scripts/verify.py`. Ověří identitu v134 mimo dva malé online hooky a syntaxi JavaScriptu. Nezastupuje to reálný herní test.
