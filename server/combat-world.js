@@ -24,6 +24,8 @@ const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_DEFINITIONS } = {}) {
   const players = new Map(); // character ID => mutable player state
   const dropsByPlayer = new Map(); // personal ground loot, never a shared pool
+  const lootRevision = new Map(); // per-player change counter; no loot in frequent world packets
+  let lastLootCleanupMs = -Infinity;
   let nextDropId = 1;
   const mobs = new Map(mobDefinitions.map(d => [d.id, {
     ...d, maxHp: d.hp, spawnX: d.x, spawnY: d.y,
@@ -44,12 +46,14 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
     };
     players.set(player.id, player);
     dropsByPlayer.set(player.id, new Map());
+    lootRevision.set(player.id, 0);
     return player;
   }
 
   function leave(id) {
     players.delete(id);
     dropsByPlayer.delete(id);
+    lootRevision.delete(id);
     for (const mob of mobs.values()) mob.contributions.delete(id);
   }
 
@@ -106,6 +110,7 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
               id: dropId, itemId: dropRule.itemId, itemName: dropRule.itemName,
               x: mob.x, y: mob.y, expiresAt: nowMs + PERSONAL_LOOT_LIFETIME_MS
             });
+            lootRevision.set(id, (lootRevision.get(id) || 0) + 1);
           }
         }
       }
@@ -127,15 +132,24 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
     if (distance(player, item) > PICKUP_RANGE) return { ok: false, reason: 'out_of_range' };
     owned.delete(dropId);
     player.testInventory.push({ itemId: item.itemId, itemName: item.itemName });
+    lootRevision.set(playerId, (lootRevision.get(playerId) || 0) + 1);
     return { ok: true, itemId: item.itemId, itemName: item.itemName };
   }
 
   function step(dtSeconds, nowMs) {
     if (!Number.isFinite(dtSeconds) || dtSeconds <= 0 || !Number.isFinite(nowMs)) return;
     const dt = Math.min(dtSeconds, 0.1);
-    for (const drops of dropsByPlayer.values()) {
-      for (const [id, item] of drops) {
-        if (nowMs >= item.expiresAt) drops.delete(id);
+    // Ground items do not need their expiration checked 20 times per second.
+    // Pickup independently checks exact expiry before granting an item.
+    if (nowMs - lastLootCleanupMs >= 1000) {
+      lastLootCleanupMs = nowMs;
+      for (const [playerId, drops] of dropsByPlayer) {
+        for (const [id, item] of drops) {
+          if (nowMs >= item.expiresAt) {
+            drops.delete(id);
+            lootRevision.set(playerId, (lootRevision.get(playerId) || 0) + 1);
+          }
+        }
       }
     }
     for (const p of players.values()) {
@@ -191,16 +205,12 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
     }
   }
 
-  function snapshot(viewerId = null) {
-    const viewer = players.get(viewerId);
-    const owned = dropsByPlayer.get(viewerId);
+  // Shared movement/monster state goes to every player frequently.
+  // Personal loot and collected items go ONLY to the owner, and only on change.
+  function snapshotWorld() {
     return {
       type: 'combat-snapshot',
       width: ARENA.width, height: ARENA.height,
-      personalDrops: owned ? [...owned.values()].map(d => ({
-        id: d.id, itemId: d.itemId, itemName: d.itemName, x: d.x, y: d.y
-      })) : [],
-      testInventory: viewer ? viewer.testInventory.map(d => ({ ...d })) : [],
       players: [...players.values()].map(p => ({
         id: p.id, name: p.name, cls: p.cls, x: p.x, y: p.y,
         hp: p.hp, maxHp: p.maxHp, xp: p.xp, yang: p.yang, kills: p.kills
@@ -211,5 +221,24 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
     };
   }
 
-  return { join, leave, setInput, attack, pickUp, step, snapshot, playerCount: () => players.size };
+  function personalLootState(viewerId) {
+    const viewer = players.get(viewerId);
+    const owned = dropsByPlayer.get(viewerId);
+    return {
+      type: 'combat-loot',
+      revision: lootRevision.get(viewerId) || 0,
+      personalDrops: owned ? [...owned.values()].map(d => ({
+        id: d.id, itemId: d.itemId, itemName: d.itemName, x: d.x, y: d.y
+      })) : [],
+      testInventory: viewer ? viewer.testInventory.map(d => ({ ...d })) : []
+    };
+  }
+
+  // Preserve the simple combined state for tests/tools; never send it to all
+  // WebSocket clients, because another player's private items must stay private.
+  function snapshot(viewerId = null) {
+    return { ...snapshotWorld(), ...personalLootState(viewerId), type: 'combat-snapshot' };
+  }
+
+  return { join, leave, setInput, attack, pickUp, step, snapshot, snapshotWorld, personalLootState, lootVersion: id => lootRevision.get(id) || 0, playerCount: () => players.size };
 }
