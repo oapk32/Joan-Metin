@@ -7,7 +7,21 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: joan_metiny
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d joan_metiny"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,3 +43,17 @@ jobs:
       - name: Multiplayer integration test
         working-directory: server
         run: npm test
+      - name: PostgreSQL 16 migration apply + replay
+        env:
+          PGPASSWORD: ci-postgres-only
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d joan_metiny -v ON_ERROR_STOP=1 -c "CREATE ROLE joan_app LOGIN PASSWORD 'ci-app-only';"
+          node server/migrations/migrate.js | psql -h 127.0.0.1 -U postgres -d joan_metiny -X -v ON_ERROR_STOP=1
+          node server/migrations/migrate.js | psql -h 127.0.0.1 -U postgres -d joan_metiny -X -v ON_ERROR_STOP=1
+          psql -h 127.0.0.1 -U postgres -d joan_metiny -Atc "SELECT COUNT(*) FROM schema_migrations;" | grep -qx 2
+      - name: PostgreSQL character ownership and saves
+        working-directory: server
+        env:
+          JOAN_TEST_DATABASE_URL: postgresql://joan_app:ci-app-only@127.0.0.1:5432/joan_metiny
+        run: node --test tests/characters-db.integration.test.js
