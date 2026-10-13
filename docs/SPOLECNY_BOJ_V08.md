@@ -22,9 +22,12 @@ Stránka `/arena/` je malá samostatná testovací aréna se sdílenými monstry
   útočí, umírají a po chvíli se respawnují.
 - Za porážku testovacího monstra získají dočasné EXP/Yangy hráči, kteří se
   v posledních deseti sekundách podíleli na jeho poškození.
+- Každému oprávněnému hráči se **nezávisle** hází vlastní kořist, kterou
+  vidí a může sebrat jen on. V aréně platí dočasné testovací dropy; viz
+  [SPOLECNY_SVET_OSOBNI_LOOT.md](SPOLECNY_SVET_OSOBNI_LOOT.md).
 - Smrt postavy v aréně → respawn po čtyřech sekundách.
 
-**ZÁSADNÍ:** Testovací EXP, Yangy a zabití jsou pouze v RAM Node.js. **Nezapisují
+**ZÁSADNÍ:** Testovací EXP, Yangy, osobní loot a zabití jsou pouze v RAM Node.js. **Nezapisují
 se do PostgreSQL a po restartu hry zmizí.** Ekonomiku skutečných online postav
 chráníme tím, že do databáze se dosud nezapisuje nic z neověřené bojové logiky.
 
@@ -75,13 +78,14 @@ veřejnému internetu. Soukromý test probíhá přes SSH tunel.
 2. Serverem řízené skutečné moby/metiny/bossy, kolize, schopnosti a školy.
 3. Ověřený inventář, zásahy, drop tabulky a transakční persistentní odměny.
 4. Zabezpečené ukládání XP/Yangů a načítání po opětovném přihlášení.
-5. Mapové instance, skupiny, bojová pravidla a zátěžové testy.
+5. Jeden sdílený stav dungeonů a bossů pro všechny hráče, pravidla odměn a zátěžové testy.
+   Chat ani party zatím neplánujeme.
 6. HTTPS, provozní monitoring a vzdálené zálohy před veřejným přístupem.
 
 ## Testy na GitHubu
 
 `server/tests/combat-world.test.js` ověřuje autoritativní HP/damage,
-respawn, omezení pohybu, dosah, cooldown a sdílené odměny.
+respawn, omezení pohybu, dosah, cooldown a nezávislý osobní loot.
 
 `server/tests/combat-ws.test.js` ověřuje datový protokol, vlastnictví
 postavy a odmítnutí současného připojení stejné postavy.
