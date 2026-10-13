@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Joan Multiplayer – první test</title>
+<style>
+*{box-sizing:border-box}body{font:16px system-ui,sans-serif;background:#0d1816;color:#ecf5ec;margin:0;padding:24px}main{max-width:980px;margin:auto}h1{margin:0 0 10px}p{line-height:1.5}.panel{border:1px solid #496357;background:#192822;border-radius:14px;padding:15px;margin-bottom:15px}canvas{width:100%;height:auto;border:2px solid #526e5e;border-radius:10px;background:#253d35;display:block}kbd{border:1px solid #789383;border-radius:4px;padding:2px 6px}#status{font-weight:bold}
+</style>
+</head>
+<body><main>
+<h1>Joan Metiny – multiplayer test</h1>
+<div class="panel"><div id="status">Připojování…</div><p>Otevři <strong>http://127.0.0.1:3000</strong> ve dvou oknech prohlížeče. Pohyb: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> nebo šipky. Tvoje postava je zlatá, ostatní modré.</p></div>
+<canvas id="world" width="900" height="550" aria-label="Testovací multiplayerové hřiště"></canvas>
+<p>Samostatný prototyp synchronizace. Zatím nejde o integrovanou původní hru Joan v134. Neobsahuje účty, boj ani ukládání postav.</p>
+<script>
+const canvas = document.getElementById('world');
+const ctx = canvas.getContext('2d');
+const status = document.getElementById('status');
+const pressed = new Set();
+let myId = null;
+let players = [];
+const socket = new WebSocket('ws://' + location.host);
+socket.addEventListener('open', () => status.textContent = 'Připojeno k serveru');
+socket.addEventListener('close', () => status.textContent = 'Odpojeno od serveru – obnov stránku');
+socket.addEventListener('error', () => status.textContent = 'Chyba připojení');
+socket.addEventListener('message', e => {
+  let msg; try { msg = JSON.parse(e.data); } catch { return; }
+  if (msg.type === 'welcome') myId = msg.id;
+  if (msg.type === 'snapshot') { players = msg.players; status.textContent = 'Připojeno • hráčů online: ' + players.length; }
+});
+const validKeys = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright']);
+addEventListener('keydown', e => { const key = e.key.toLowerCase(); if (validKeys.has(key)) { e.preventDefault(); pressed.add(key); } });
+addEventListener('keyup', e => { const key = e.key.toLowerCase(); if (validKeys.has(key)) { e.preventDefault(); pressed.delete(key); } });
+addEventListener('blur', () => pressed.clear());
+setInterval(() => {
+  if (socket.readyState !== WebSocket.OPEN) return;
+  const x = Number(pressed.has('d') || pressed.has('arrowright')) - Number(pressed.has('a') || pressed.has('arrowleft'));
+  const y = Number(pressed.has('s') || pressed.has('arrowdown')) - Number(pressed.has('w') || pressed.has('arrowup'));
+  socket.send(JSON.stringify({type:'input',x,y}));
+}, 50);
+function frame() {
+  ctx.fillStyle='#253d35'; ctx.fillRect(0,0,900,550);
+  ctx.strokeStyle='#354e43'; ctx.lineWidth=1;
+  for(let x=0;x<=900;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,550);ctx.stroke();}
+  for(let y=0;y<=550;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(900,y);ctx.stroke();}
+  for (const p of players) {
+    ctx.fillStyle = p.id === myId ? '#e6bd57' : '#6bb6e7';
+    ctx.beginPath();ctx.arc(p.x,p.y,15,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='14px system-ui';ctx.textAlign='center';
+    ctx.fillText(p.id === myId ? 'Ty (#'+p.id+')' : 'Hráč #'+p.id, p.x, p.y-22);
+  }
+  requestAnimationFrame(frame);
+}
+frame();
+</script></main></body></html>
