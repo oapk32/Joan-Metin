@@ -51,7 +51,7 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d joan_metiny -v ON_ERROR_STOP=1 -c "CREATE ROLE joan_app LOGIN PASSWORD 'ci-app-only';"
           node server/migrations/migrate.js | psql -h 127.0.0.1 -U postgres -d joan_metiny -X -v ON_ERROR_STOP=1
           node server/migrations/migrate.js | psql -h 127.0.0.1 -U postgres -d joan_metiny -X -v ON_ERROR_STOP=1
-          psql -h 127.0.0.1 -U postgres -d joan_metiny -Atc "SELECT COUNT(*) FROM schema_migrations;" | grep -qx 2
+          psql -h 127.0.0.1 -U postgres -d joan_metiny -Atc "SELECT COUNT(*) FROM schema_migrations;" | grep -qx 3
       - name: PostgreSQL character ownership and saves
         working-directory: server
         env:
