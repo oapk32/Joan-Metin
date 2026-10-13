@@ -1,2 +1,2 @@
-# Joan-Metin
-Muj pokus o videohru
+# Joan-Metiny development
+
