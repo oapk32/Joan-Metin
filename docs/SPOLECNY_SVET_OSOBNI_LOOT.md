@@ -33,9 +33,11 @@ Implementujeme jej postupně do větve `multiplayer-dev`.
 - Sdílené dva vlky a orka má jedna testovací místnost.
 - Osobní testovací kořist se zobrazuje na zemi pouze vlastníkovi,
   sebrání `E`, tlačítkem **Sebrat** nebo kliknutím.
-- Server ověřuje vlastníka, dosah 65 jednotek, život postavy,
-  kapacitu testovacího batohu (30) a platnost kořisti.
-- Kořist po 30 sekundách zmizí; nepřežitá kořist zmizí i při odpojení.
+- Server ověřuje vlastníka, dosah 65 jednotek, život postavy
+  a platnost kořisti. **Počet předmětů na zemi ani v testovacím batohu
+  nemá pevný limit.**
+- Kořist na zemi zmizí po **120 sekundách** od vytvoření.
+  Při odpojení hráče se jeho dočasná testovací kořist také odstraní.
 - Při smrti vlka se každému oprávněnému hráči samostatně hází
   50 % na testovací vlčí kožešinu, u orka 60 % na testovací trofej.
   **Jde jen o dočasné údaje testovací arény, nikoli drop tabulky v134.**
@@ -43,6 +45,13 @@ Implementujeme jej postupně do větve `multiplayer-dev`.
   Po restartu Node.js procesu nebo odpojení se ztratí.
 - Server oběma hráčům pošle stejný stav monster, ale každému
   **jiný, jen jeho vlastní seznam osobní kořisti**.
+- Osobní loot a testovací batoh se neposílají znovu při každé synchronizaci
+  monster; změny jdou samostatnou zprávou `combat-loot`.
+  Prošlé předměty se čistí přibližně jednou za sekundu, ale pokus
+  o sebrání se kontroluje vůči přesnému času expirace.
+- Bez pevného limitu itemů může vysoký počet položek spotřebovávat více
+  paměti a sítě; v produkci bude potřeba měřit a případně dávkovat změny,
+  **nikoli zavádět skrytý limit pro hráče**.
 
 ## Co není ještě hotovo
 
