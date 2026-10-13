@@ -1,8 +1,8 @@
-/* Online movement preview for Joan v134. No combat/account/inventory synchronization. */
+/* Joan v134: optional LAN multiplayer presence. Gameplay state is local, not authoritative. */
 (() => {
   'use strict';
-  // Keep the standalone/singleplayer client unchanged when run outside this Node server.
   if (!/^\/joan(?:\/|$)/.test(location.pathname)) return;
+
   const indicator = document.createElement('div');
   indicator.setAttribute('role', 'status');
   indicator.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:4000;padding:7px 11px;border:1px solid #6e9377;background:#10251fed;color:#fff;font:13px system-ui;border-radius:7px;pointer-events:none';
@@ -11,9 +11,11 @@
 
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const socket = new WebSocket(protocol + '//' + location.host + '/joan-ws');
-  let peers = [];
-  let lastSent = 0;
+  const peers = new Map();
+  const classes = new Set(['warrior', 'ninja', 'sura', 'shaman', 'lycan']);
   let connected = false;
+  let lastSent = 0;
+  let visibleCount = 0;
 
   socket.addEventListener('open', () => {
     connected = true;
@@ -21,19 +23,48 @@
   });
   socket.addEventListener('close', () => {
     connected = false;
-    peers = [];
+    peers.clear();
     indicator.textContent = 'Joan Online: odpojeno (obnov stránku)';
   });
   socket.addEventListener('error', () => {
     indicator.textContent = 'Joan Online: chyba připojení';
   });
-  socket.addEventListener('message', (event) => {
+  socket.addEventListener('message', event => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
-    if (message.type === 'joan-peers' && Array.isArray(message.players)) {
-      peers = message.players;
-      indicator.textContent = 'Joan Online: hráčů v oblasti ' + message.count;
+    if (message.type !== 'joan-peers' || !Array.isArray(message.players)) return;
+    const now = performance.now();
+    const ids = new Set();
+    for (const peer of message.players.slice(0, 29)) {
+      if (typeof peer.id !== 'string' || !Number.isFinite(peer.x) || !Number.isFinite(peer.y)) continue;
+      ids.add(peer.id);
+      const old = peers.get(peer.id);
+      const x = Math.max(0, Math.min(1100, peer.x));
+      const y = Math.max(0, Math.min(660, peer.y));
+      if (old) {
+        // Teleports / map transfers should not slide through the world.
+        if (Math.hypot(x - old.x, y - old.y) > 220) {
+          old.x = x;
+          old.y = y;
+        }
+        old.tx = x;
+        old.ty = y;
+        old.dir = Number.isFinite(peer.dir) ? peer.dir : old.dir;
+        old.cls = classes.has(peer.cls) ? peer.cls : 'warrior';
+        old.name = String(peer.name || 'Hráč').slice(0, 24);
+        old.updatedAt = now;
+      } else {
+        peers.set(peer.id, {
+          id: peer.id, x, y, tx: x, ty: y, dir: Number.isFinite(peer.dir) ? peer.dir : 0,
+          cls: classes.has(peer.cls) ? peer.cls : 'warrior',
+          name: String(peer.name || 'Hráč').slice(0, 24),
+          walk: 0, moving: 0, updatedAt: now, sampledAt: now
+        });
+      }
     }
+    for (const id of peers.keys()) if (!ids.has(id)) peers.delete(id);
+    visibleCount = Math.max(0, Number(message.count) || 0);
+    indicator.textContent = 'Joan Online: hráčů v oblasti ' + visibleCount;
   });
 
   function tick(hero, room, now) {
@@ -46,37 +77,30 @@
       room: Number.isInteger(room) ? room : 0,
       x: active ? hero.x : 0,
       y: active ? hero.y : 0,
+      dir: active && Number.isFinite(hero.dir) ? hero.dir : 0,
+      cls: active && classes.has(hero.cls) ? hero.cls : 'warrior',
       name: active ? String(hero.name || 'Hráč').slice(0, 24) : ''
     }));
   }
 
-  function draw(ctx, hero, _room, scale) {
-    if (!hero || !peers.length) return;
-    ctx.save();
-    ctx.setTransform(scale || 1, 0, 0, scale || 1, 0, 0);
-    ctx.globalAlpha = 0.83;
-    ctx.textAlign = 'center';
-    for (const peer of peers) {
-      if (!Number.isFinite(peer.x) || !Number.isFinite(peer.y)) continue;
-      const x = peer.x, y = peer.y;
-      ctx.fillStyle = '#72b8f2';
-      ctx.strokeStyle = '#b3e0ff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.ellipse(x, y - 10, 11, 18, 0, 0, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#203f69';
-      ctx.beginPath(); ctx.arc(x, y - 26, 7, 0, Math.PI * 2); ctx.fill();
-      ctx.font = 'bold 13px system-ui';
-      ctx.fillStyle = '#f2f8ff';
-      ctx.strokeStyle = '#182c3c';
-      ctx.lineWidth = 3;
-      const label = String(peer.name || 'Hráč').slice(0, 24);
-      ctx.strokeText(label, x, y - 41);
-      ctx.fillText(label, x, y - 41);
+  function getPeers() {
+    const now = performance.now();
+    const result = [];
+    for (const peer of peers.values()) {
+      const dt = Math.min(0.06, Math.max(0, (now - peer.sampledAt) / 1000));
+      peer.sampledAt = now;
+      const dx = peer.tx - peer.x;
+      const dy = peer.ty - peer.y;
+      const alpha = 1 - Math.exp(-dt / 0.085);
+      peer.x += dx * alpha;
+      peer.y += dy * alpha;
+      const moving = Math.hypot(dx, dy) > 0.8 && now - peer.updatedAt < 550;
+      peer.moving += ((moving ? 1 : 0) - peer.moving) * Math.min(1, dt * 12);
+      peer.walk += dt * 10.5 * peer.moving;
+      result.push(peer);
     }
-    ctx.restore();
+    return result;
   }
 
-  window.JoanMP = { tick, draw };
+  window.JoanMP = { tick, getPeers };
 })();
