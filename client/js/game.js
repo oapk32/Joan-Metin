@@ -515,7 +515,9 @@
     let dt = clamp((now - last) / 1000, 0, 0.048);
     last = now;
     update(dt);
+    window.JoanMP?.tick(player, current, now);
     draw();
+    window.JoanMP?.draw(cx, player, current, V38.scale);
     requestAnimationFrame(loop);
   }
   function setMouse(e) {
