@@ -55,8 +55,7 @@
       const reason = {
         out_of_range: 'Kořist je příliš daleko.',
         not_owned_or_expired: 'Tato kořist ti nepatří, nebo už zmizela.',
-        dead: 'Mrtvá postava nesbírá kořist.',
-        inventory_full: 'Testovací batoh je plný.'
+        dead: 'Mrtvá postava nesbírá kořist.'
       };
       message.textContent = value.ok
         ? 'Sebráno: ' + value.itemName + ' (jen test, neukládá se)'
