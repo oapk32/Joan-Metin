@@ -8,6 +8,7 @@ import { registerAccount, authenticateAccount } from './auth.js';
 import { createAuthHttp } from './auth-http.js';
 import { listCharacters, getCharacter, createCharacter } from './characters.js';
 import { createCharactersHttp } from './characters-http.js';
+import { startCombatArena } from './combat-ws.js';
 
 const HOST = process.env.JOAN_BIND_HOST || '127.0.0.1'; // bind to Tailscale IP only when explicitly requested
 const PORT = Number(process.env.PORT || 3000);
@@ -29,6 +30,9 @@ const charactersHttp = authHttp ? createCharactersHttp({
   get: (accountId, id) => getCharacter(pool, accountId, id),
   create: (accountId, input) => createCharacter(pool, accountId, input)
 }) : null;
+const combatArena = authHttp ? startCombatArena({
+  loadCharacter: (accountId, characterId) => getCharacter(pool, accountId, characterId)
+}) : null;
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const WIDTH = 900;
 const HEIGHT = 550;
@@ -48,7 +52,10 @@ const ASSETS = new Map([
   ['/joan/js/mp-bridge.js', [join(ROOT, '..', 'client', 'js', 'mp-bridge.js'), 'text/javascript; charset=utf-8']],
   ['/account/', [join(ROOT, 'public', 'account.html'), 'text/html; charset=utf-8']],
   ['/account/style.css', [join(ROOT, 'public', 'account.css'), 'text/css; charset=utf-8']],
-  ['/account/app.js', [join(ROOT, 'public', 'account.js'), 'text/javascript; charset=utf-8']]
+  ['/account/app.js', [join(ROOT, 'public', 'account.js'), 'text/javascript; charset=utf-8']],
+  ['/arena/', [join(ROOT, 'public', 'arena.html'), 'text/html; charset=utf-8']],
+  ['/arena/style.css', [join(ROOT, 'public', 'arena.css'), 'text/css; charset=utf-8']],
+  ['/arena/app.js', [join(ROOT, 'public', 'arena.js'), 'text/javascript; charset=utf-8']]
 ]);
 
 const server = http.createServer(async (req, res) => {
@@ -60,10 +67,12 @@ const server = http.createServer(async (req, res) => {
     if (await charactersHttp.handle(req, res, pathname)) return;
     if (await authHttp.handle(req, res, pathname)) return;
     if (pathname === '/account') { res.writeHead(308, { location: '/account/' }).end(); return; }
-    if ((pathname === '/joan' || pathname.startsWith('/joan/')) && !authHttp.sessionFor(req)) {
+    if (pathname === '/arena') { res.writeHead(308, { location: '/arena/' }).end(); return; }
+    if ((pathname === '/joan' || pathname.startsWith('/joan/') ||
+         pathname === '/arena' || pathname.startsWith('/arena/')) && !authHttp.sessionFor(req)) {
       res.writeHead(302, { location: '/account/', 'cache-control': 'no-store' }).end(); return;
     }
-  } else if (pathname.startsWith('/account') || pathname.startsWith('/api/')) {
+  } else if (pathname.startsWith('/account') || pathname.startsWith('/arena') || pathname.startsWith('/api/')) {
     res.writeHead(404).end('Not found'); return;
   }
   if (req.method !== 'GET') { res.writeHead(405).end('Method not allowed'); return; }
@@ -76,7 +85,7 @@ const server = http.createServer(async (req, res) => {
       'content-type': resource[1],
       'cache-control': 'no-store',
       'x-content-type-options': 'nosniff',
-      ...(authHttp && pathname === '/account/' ? {
+      ...(authHttp && (pathname === '/account/' || pathname === '/arena/') ? {
         'content-security-policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
       } : {})
     });
@@ -157,6 +166,11 @@ function broadcast(payload) {
 const clamp = (value, max) => Math.max(0, Math.min(max, value));
 wss.on('connection', (socket, request) => {
   if (authHttp) socket.authKey = authHttp.sessionFor(request)?.key;
+  if (request.url?.startsWith('/combat-ws')) {
+    if (!combatArena) { socket.close(1008, 'Private arena only'); return; }
+    void combatArena.connect(socket, request, authHttp.sessionFor(request));
+    return;
+  }
   if (request.url === '/joan-ws') { connectJoan(socket); return; }
   if (request.url !== '/') { socket.close(1008, 'Unknown WebSocket path'); return; }
   if (players.size >= MAX_PLAYERS) {
