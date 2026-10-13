@@ -247,3 +247,23 @@ test('Shared monsters can remain idle while there are no players', () => {
   world.step(0.05, 2000);
   assert.equal(player.hp, 93);
 });
+
+test('Sleeping mobs perform no full target search between one-second scans', () => {
+  const definitions = Array.from({ length: 200 }, (_, i) => ({
+    id: 'idle-' + i, kind: 'Vlk', x: 800, y: 450, hp: 10,
+    speed: 10, attack: 1, xp: 0, yang: 0
+  }));
+  const world = createCombatWorld({ mobDefinitions: definitions });
+  world.step(0.05, 1000);
+  assert.equal(world.diagnostics().fullTargetScans, 0, 'empty world does no monster AI');
+  world.join(hero('1', 'Alice')); // spawn is far outside monster aggro range
+  world.step(0.05, 1000);
+  assert.equal(world.diagnostics().fullTargetScans, 200);
+  assert.equal(world.diagnostics().sleepingMobs, 200);
+  for (let time = 1050; time < 2000; time += 50) {
+    world.step(0.05, time);
+  }
+  assert.equal(world.diagnostics().fullTargetScans, 200, 'no extra scans during 19 movement ticks');
+  world.step(0.05, 2000);
+  assert.equal(world.diagnostics().fullTargetScans, 400, 'one new scan per monster at 1 second');
+});
