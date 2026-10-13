@@ -20,9 +20,11 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now() }) {
   }, TICK_MS);
   const broadcast = setInterval(() => {
     if (!clients.size) return;
-    const message = JSON.stringify(world.snapshot());
-    for (const socket of clients.keys()) {
-      if (socket.readyState === WebSocket.OPEN) socket.send(message);
+    for (const [socket, playerId] of clients) {
+      if (socket.readyState === WebSocket.OPEN) {
+        // The common world stays shared, while ground loot is private to its owner.
+        socket.send(JSON.stringify(world.snapshot(playerId)));
+      }
     }
   }, BROADCAST_MS);
 
@@ -69,7 +71,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now() }) {
       type: 'combat-welcome', id: player.id,
       note: 'Arena demo only. Rewards do not persist.'
     }));
-    socket.send(JSON.stringify(world.snapshot()));
+    socket.send(JSON.stringify(world.snapshot(player.id)));
 
     let lastInput = 0;
     socket.on('message', bytes => {
@@ -86,6 +88,12 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now() }) {
         const result = world.attack(player.id, msg.mobId, clock());
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: 'combat-hit', ...result }));
+        }
+      } else if (msg.type === 'combat-pickup') {
+        const result = world.pickUp(player.id, msg.dropId, clock());
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: 'combat-pickup-result', ...result }));
+          if (result.ok) socket.send(JSON.stringify(world.snapshot(player.id)));
         }
       }
     });
