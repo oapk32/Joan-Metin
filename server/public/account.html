@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Joan Metiny Online – účet</title>
+  <link rel="stylesheet" href="/account/style.css">
+  <script src="/account/app.js" defer></script>
+</head>
+<body>
+  <main class="auth-card">
+    <p class="eyebrow">JOAN METINY ONLINE · SOUKROMÝ TEST</p>
+    <h1>Účet hráče</h1>
+    <p class="note">Přihlášení do multiplayer prototypu. Postavy, inventář a level se zatím stále ukládají jen v tomto prohlížeči, ne na serveru.</p>
+    <section id="loggedIn" hidden>
+      <h2>Jsi přihlášený</h2>
+      <p>Účet: <strong id="loggedName"></strong></p>
+      <p class="actions"><a class="button primary" href="/joan/">Vstoupit do Joanu</a> <button id="logout" type="button">Odhlásit se</button></p>
+    </section>
+    <section id="loggedOut" hidden>
+      <div class="tabs"><button id="loginMode" type="button" aria-pressed="true">Přihlášení</button><button id="registerMode" type="button" aria-pressed="false">Registrace</button></div>
+      <form id="authForm" autocomplete="on">
+        <label for="username">Uživatelské jméno</label>
+        <input id="username" name="username" autocomplete="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_]{3,32}" required>
+        <label for="password">Heslo</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" minlength="12" required>
+        <p class="hint">Jméno: 3–32 znaků (písmena bez diakritiky, čísla, _). Heslo: alespoň 12 znaků.</p>
+        <button class="primary" id="submit" type="submit">Přihlásit se</button>
+      </form>
+    </section>
+    <p id="status" role="status" aria-live="polite">Načítání…</p>
+    <p class="foot">Jen soukromý vývojový test přes SSH tunel. Veřejný server ještě není připravený.</p>
+  </main>
+</body>
+</html>
