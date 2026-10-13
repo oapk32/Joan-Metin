@@ -100,7 +100,7 @@ test('PostgreSQL/private auth: owned characters join one shared combat arena', {
   const shared = receivedA.find(m => m.type === 'combat-snapshot' && m.players.length === 2);
   assert.ok(shared.players.some(p => p.id === idA));
   assert.ok(shared.players.some(p => p.id === idB));
-  assert.equal(shared.mobs.length, 3);
+  assert.equal(shared.mobs.length, 2); // remote orc is not streamed to initial spawn
 
   alice.send(JSON.stringify({ type: 'combat-attack', mobId: 'wolf-1', damage: 9999999 }));
   await waitFor(() => receivedA.some(m => m.type === 'combat-hit'));
