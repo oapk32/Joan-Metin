@@ -6,6 +6,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createDatabasePool } from './db.js';
 import { registerAccount, authenticateAccount } from './auth.js';
 import { createAuthHttp } from './auth-http.js';
+import { listCharacters, getCharacter, createCharacter } from './characters.js';
+import { createCharactersHttp } from './characters-http.js';
 
 const HOST = process.env.JOAN_BIND_HOST || '127.0.0.1'; // bind to Tailscale IP only when explicitly requested
 const PORT = Number(process.env.PORT || 3000);
@@ -19,6 +21,13 @@ const authHttp = AUTH_ENABLED ? createAuthHttp({
   port: PORT,
   register: (username, password) => registerAccount(pool, username, password),
   authenticate: (username, password) => authenticateAccount(pool, username, password)
+}) : null;
+const charactersHttp = authHttp ? createCharactersHttp({
+  sessionFor: authHttp.sessionFor,
+  allowedOrigin: authHttp.allowedOrigin,
+  list: accountId => listCharacters(pool, accountId),
+  get: (accountId, id) => getCharacter(pool, accountId, id),
+  create: (accountId, input) => createCharacter(pool, accountId, input)
 }) : null;
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const WIDTH = 900;
@@ -48,6 +57,7 @@ const server = http.createServer(async (req, res) => {
   catch { res.writeHead(400).end('Bad request'); return; }
   if (authHttp) {
     if (!authHttp.allowedHost(req)) { res.writeHead(403).end('Invalid host'); return; }
+    if (await charactersHttp.handle(req, res, pathname)) return;
     if (await authHttp.handle(req, res, pathname)) return;
     if (pathname === '/account') { res.writeHead(308, { location: '/account/' }).end(); return; }
     if ((pathname === '/joan' || pathname.startsWith('/joan/')) && !authHttp.sessionFor(req)) {
