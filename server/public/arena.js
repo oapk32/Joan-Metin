@@ -14,7 +14,9 @@
     location.host + '/combat-ws?character=' + encodeURIComponent(character));
   const keys = new Set();
   let myId = null;
-  let snapshot = { players: [], mobs: [], personalDrops: [], testInventory: [] };
+  let snapshot = { players: [], mobs: [] };
+  let personalDrops = [];
+  let testInventory = [];
   const keySet = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright']);
 
   socket.addEventListener('open', () => { status.textContent = 'Ověřuji postavu…'; });
@@ -35,7 +37,7 @@
         stats.textContent = me.name + ' · HP ' + me.hp + '/' + me.maxHp +
           ' · test EXP ' + me.xp + ' · test Yang ' + me.yang +
           ' · zabití ' + me.kills + ' · test batoh: ' +
-          (snapshot.testInventory?.length || 0) + ' · hráčů: ' + snapshot.players.length;
+          testInventory.length + ' · hráčů: ' + snapshot.players.length;
       }
     } else if (value.type === 'combat-hit') {
       const reason = { out_of_range: 'Monstrum je příliš daleko.',
@@ -45,6 +47,10 @@
       message.textContent = value.ok
         ? 'Zásah za ' + value.damage + ' HP' + (value.defeated ? ' · Monstrum poraženo!' : '')
         : (reason[value.reason] || 'Útok nebyl přijat.');
+    } else if (value.type === 'combat-loot') {
+      // Never replace this with another player's world snapshot.
+      personalDrops = Array.isArray(value.personalDrops) ? value.personalDrops : [];
+      testInventory = Array.isArray(value.testInventory) ? value.testInventory : [];
     } else if (value.type === 'combat-pickup-result') {
       const reason = {
         out_of_range: 'Kořist je příliš daleko.',
@@ -93,7 +99,7 @@
   function pickUpNearest() {
     const me = snapshot.players.find(p => p.id === myId);
     if (!me) return;
-    const drops = [...(snapshot.personalDrops || [])];
+    const drops = [...personalDrops];
     drops.sort((a,b) => Math.hypot(me.x-a.x,me.y-a.y) - Math.hypot(me.x-b.x,me.y-b.y));
     if (drops[0] && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'combat-pickup', dropId: drops[0].id }));
@@ -110,7 +116,7 @@
     const bounds = canvas.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width * canvas.width;
     const y = (event.clientY - bounds.top) / bounds.height * canvas.height;
-    const drop = (snapshot.personalDrops || []).find(d => Math.hypot(d.x-x,d.y-y) <= 28);
+    const drop = personalDrops.find(d => Math.hypot(d.x-x,d.y-y) <= 28);
     if (drop && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'combat-pickup', dropId: drop.id }));
       return;
@@ -145,7 +151,7 @@
       healthBar(mob.x,mob.y-27,42,mob.hp,mob.maxHp);
     }
     // Drops are already filtered for this player's account by the server.
-    for (const drop of (snapshot.personalDrops || [])) {
+    for (const drop of personalDrops) {
       ctx.fillStyle = '#f6e29d';
       ctx.beginPath(); ctx.moveTo(drop.x,drop.y-9); ctx.lineTo(drop.x+9,drop.y);
       ctx.lineTo(drop.x,drop.y+9); ctx.lineTo(drop.x-9,drop.y); ctx.closePath(); ctx.fill();
