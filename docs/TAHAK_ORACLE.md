@@ -20,6 +20,11 @@ curl -I --max-time 5 http://127.0.0.1:3000/joan/
 U `curl`: HTTP 200 = Joan HTTP proces naslouchá lokálně; chyba spojení = prototyp není spuštěn. HTTP 200 **není důkaz**, že hra a databáze fungují nebo že je vše bezpečné.
 
 ## 3. Hra – dočasné ruční ovládání
+
+Pro soukromý test registrace v0.6 viz [TEST_PRIHLASENI_ORACLE.md](TEST_PRIHLASENI_ORACLE.md).
+Příkaz níže bez `JOAN_AUTH_ENABLED=1` spouští pouze starý prototyp bez přihlášení.
+
+
 ```bash
 cd ~/Joan-Metin-MP/server
 npm start
