@@ -14,26 +14,93 @@ const MAX_PLAYERS = 30;
 const players = new Map();
 let nextId = 1;
 
+const ASSETS = new Map([
+  ['/', [join(ROOT, 'public', 'index.html'), 'text/html; charset=utf-8']],
+  ['/index.html', [join(ROOT, 'public', 'index.html'), 'text/html; charset=utf-8']],
+  ['/joan/', [join(ROOT, '..', 'client', 'index.html'), 'text/html; charset=utf-8']],
+  ['/joan/index.html', [join(ROOT, '..', 'client', 'index.html'), 'text/html; charset=utf-8']],
+  ['/joan/css/game.css', [join(ROOT, '..', 'client', 'css', 'game.css'), 'text/css; charset=utf-8']],
+  ['/joan/js/audio-data.js', [join(ROOT, '..', 'client', 'js', 'audio-data.js'), 'text/javascript; charset=utf-8']],
+  ['/joan/js/game.js', [join(ROOT, '..', 'client', 'js', 'game.js'), 'text/javascript; charset=utf-8']],
+  ['/joan/js/mp-bridge.js', [join(ROOT, '..', 'client', 'js', 'mp-bridge.js'), 'text/javascript; charset=utf-8']]
+]);
+
 const server = http.createServer(async (req, res) => {
-  if (req.url !== '/' && req.url !== '/index.html') {
-    res.writeHead(404).end('Not found');
-    return;
-  }
+  if (req.method !== 'GET') { res.writeHead(405).end('Method not allowed'); return; }
+  let pathname;
+  try { pathname = new URL(req.url, 'http://localhost').pathname; }
+  catch { res.writeHead(400).end('Bad request'); return; }
+  if (pathname === '/joan') { res.writeHead(308, { location: '/joan/' }).end(); return; }
+  const resource = ASSETS.get(pathname);
+  if (!resource) { res.writeHead(404).end('Not found'); return; }
   try {
-    const html = await readFile(join(ROOT, 'public', 'index.html'));
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-    res.end(html);
-  } catch {
+    const bytes = await readFile(resource[0]);
+    res.writeHead(200, {
+      'content-type': resource[1],
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff'
+    });
+    res.end(bytes);
+  } catch (error) {
+    console.error('File response error:', pathname, error.message);
     res.writeHead(500).end('Server error');
   }
 });
 const wss = new WebSocketServer({ server, maxPayload: 1024 });
+
+const joanPlayers = new Map();
+function connectJoan(socket) {
+  if (joanPlayers.size >= MAX_PLAYERS) { socket.close(1013, 'Server full'); return; }
+  const player = {
+    id: 'j' + nextId++, name: 'Hráč', x: 0, y: 0, room: 0,
+    active: false, lastUpdate: 0
+  };
+  joanPlayers.set(socket, player);
+  socket.send(JSON.stringify({ type: 'joan-welcome', id: player.id }));
+  socket.on('message', bytes => {
+    let message;
+    try { message = JSON.parse(String(bytes)); } catch { return; }
+    if (message?.type !== 'joan-state') return;
+    const now = Date.now();
+    if (now - player.lastUpdate < 45) return;
+    player.lastUpdate = now;
+    if (!Number.isInteger(message.room) || message.room < 0 || message.room > 1000) return;
+    if (message.active === true &&
+      (!Number.isFinite(message.x) || !Number.isFinite(message.y) ||
+       message.x < 0 || message.x > 1100 || message.y < 0 || message.y > 660)) return;
+    player.room = message.room;
+    player.active = message.active === true;
+    if (player.active) { player.x = message.x; player.y = message.y; }
+    player.name = String(message.name || 'Hráč').replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 24);
+  });
+  socket.on('close', () => joanPlayers.delete(socket));
+}
+
+// This prototype exchanges visual presence only. Do not treat client coordinates as secure combat state.
+setInterval(() => {
+  if (!joanPlayers.size) return;
+  const all = [...joanPlayers.entries()];
+  for (const [socket, viewer] of all) {
+    if (socket.readyState !== WebSocket.OPEN) continue;
+    const sameRoom = all
+      .filter(([, other]) => other.active && other.room === viewer.room)
+      .map(([, other]) => ({ id: other.id, name: other.name, x: other.x, y: other.y }));
+    socket.send(JSON.stringify({
+      type: 'joan-peers',
+      count: viewer.active ? sameRoom.length : 0,
+      players: sameRoom.filter(p => p.id !== viewer.id)
+    }));
+  }
+}, 125);
+
 function broadcast(payload) {
   const text = JSON.stringify(payload);
   for (const client of players.keys()) if (client.readyState === WebSocket.OPEN) client.send(text);
 }
 const clamp = (value, max) => Math.max(0, Math.min(max, value));
-wss.on('connection', socket => {
+wss.on('connection', (socket, request) => {
+  if (request.url === '/joan-ws') { connectJoan(socket); return; }
+  if (request.url !== '/') { socket.close(1008, 'Unknown WebSocket path'); return; }
   if (players.size >= MAX_PLAYERS) {
     socket.close(1013, 'Server full');
     return;
