@@ -30,6 +30,7 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
   const dropsByPlayer = new Map(); // personal ground loot, never a shared pool
   const lootRevision = new Map(); // per-player change counter; no loot in frequent world packets
   let lastLootCleanupMs = -Infinity;
+  let fullTargetScans = 0;
   let nextDropId = 1;
   const mobs = new Map(mobDefinitions.map(d => [d.id, {
     ...d, maxHp: d.hp, spawnX: d.x, spawnY: d.y,
@@ -192,8 +193,10 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
       }
       // Movement and attacks remain on the 20 Hz game tick.
       // Full nearest-player scans run once per second, even during combat.
-      // Idle monsters at home skip all AI and movement between scans.
-      // The cached target's validity/range is checked each tick.
+      // A sleeping monster at its spawn skips the rest of this tick entirely.
+      if (mob.targetId === null && nowMs < mob.nextTargetScanAt &&
+          mob.x === mob.spawnX && mob.y === mob.spawnY) continue;
+      // The cached target's validity/range is checked each active tick.
       let target = mob.targetId === null ? null : players.get(mob.targetId);
       let nearestSquared = target?.hp > 0 ? distanceSquared(target, mob) : Infinity;
       if (mob.targetId !== null && nearestSquared >= MONSTER_AGGRO_RADIUS_SQUARED) {
@@ -202,6 +205,7 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
         // Wait for the scheduled 1 Hz scan instead of scanning immediately.
       }
       if (nowMs >= mob.nextTargetScanAt) {
+        fullTargetScans += 1;
         target = null;
         nearestSquared = MONSTER_AGGRO_RADIUS_SQUARED;
         for (const candidate of players.values()) {
@@ -279,5 +283,17 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
     return { ...snapshotWorld(), ...personalLootState(viewerId), type: 'combat-snapshot' };
   }
 
-  return { join, leave, setInput, attack, pickUp, step, snapshot, snapshotWorld, personalLootState, lootVersion: id => lootRevision.get(id) || 0, playerCount: () => players.size };
+  return {
+    join, leave, setInput, attack, pickUp, step,
+    snapshot, snapshotWorld, personalLootState,
+    lootVersion: id => lootRevision.get(id) || 0,
+    playerCount: () => players.size,
+    diagnostics: () => ({
+      fullTargetScans,
+      mobCount: mobs.size,
+      sleepingMobs: [...mobs.values()].filter(m =>
+        m.hp > 0 && m.targetId === null &&
+        m.x === m.spawnX && m.y === m.spawnY).length
+    })
+  };
 }
