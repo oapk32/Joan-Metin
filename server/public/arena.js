@@ -17,6 +17,24 @@
   let snapshot = { players: [], mobs: [] };
   let personalDrops = [];
   let testInventory = [];
+  function refreshStats() {
+    const me = snapshot.players.find(p => p.id === myId);
+    if (!me) return;
+    stats.textContent = me.name + ' · HP ' + me.hp + '/' + me.maxHp +
+      ' · test EXP ' + me.xp + ' · test Yang ' + me.yang +
+      ' · zabití ' + me.kills + ' · test batoh: ' +
+      testInventory.length + ' · hráčů v okolí: ' + snapshot.players.length;
+  }
+  function applyDelta(delta) {
+    for (const type of ['players', 'mobs']) {
+      const byId = new Map(snapshot[type].map(item => [item.id, item]));
+      for (const id of (delta[type + 'Removed'] || [])) byId.delete(id);
+      for (const item of [...(delta[type + 'Added'] || []), ...(delta[type + 'Changed'] || [])]) {
+        if (item && typeof item.id === 'string') byId.set(item.id, item);
+      }
+      snapshot[type] = [...byId.values()];
+    }
+  }
   const keySet = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright']);
 
   socket.addEventListener('open', () => { status.textContent = 'Ověřuji postavu…'; });
@@ -32,13 +50,10 @@
       status.textContent = 'Připojeno do společné arény';
     } else if (value.type === 'combat-snapshot' && Array.isArray(value.players) && Array.isArray(value.mobs)) {
       snapshot = value;
-      const me = snapshot.players.find(p => p.id === myId);
-      if (me) {
-        stats.textContent = me.name + ' · HP ' + me.hp + '/' + me.maxHp +
-          ' · test EXP ' + me.xp + ' · test Yang ' + me.yang +
-          ' · zabití ' + me.kills + ' · test batoh: ' +
-          testInventory.length + ' · hráčů: ' + snapshot.players.length;
-      }
+      refreshStats();
+    } else if (value.type === 'combat-delta') {
+      applyDelta(value);
+      refreshStats();
     } else if (value.type === 'combat-hit') {
       const reason = { out_of_range: 'Monstrum je příliš daleko.',
         cooldown: 'Útok se obnovuje.', dead: 'Počkej na oživení.',
@@ -51,6 +66,7 @@
       // Never replace this with another player's world snapshot.
       personalDrops = Array.isArray(value.personalDrops) ? value.personalDrops : [];
       testInventory = Array.isArray(value.testInventory) ? value.testInventory : [];
+      refreshStats();
     } else if (value.type === 'combat-pickup-result') {
       const reason = {
         out_of_range: 'Kořist je příliš daleko.',
