@@ -6,6 +6,9 @@ export const ATTACK_RANGE = 82;
 export const ATTACK_COOLDOWN_MS = 550;
 const PLAYER_RESPAWN_MS = 4000;
 const MOB_RESPAWN_MS = 6000;
+export const ACTIVE_TARGET_SCAN_MS = 250;
+export const IDLE_TARGET_SCAN_MS = 800;
+const MONSTER_AGGRO_RADIUS_SQUARED = 230 * 230;
 export const PERSONAL_LOOT_LIFETIME_MS = 120000;
 const PICKUP_RANGE = 65;
 // Prototype-only drops. These are NOT the canonical v134 loot tables.
@@ -20,6 +23,7 @@ const MOB_DEFINITIONS = [
 ];
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const distanceSquared = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 
 export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_DEFINITIONS } = {}) {
   const players = new Map(); // character ID => mutable player state
@@ -29,7 +33,8 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
   let nextDropId = 1;
   const mobs = new Map(mobDefinitions.map(d => [d.id, {
     ...d, maxHp: d.hp, spawnX: d.x, spawnY: d.y,
-    deadUntil: 0, lastAttack: 0, contributions: new Map()
+    deadUntil: 0, lastAttack: 0, targetId: null, nextTargetScanAt: 0,
+    contributions: new Map()
   }]));
 
   function join(character) {
@@ -170,17 +175,40 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
           mob.hp = mob.maxHp;
           mob.x = mob.spawnX; mob.y = mob.spawnY;
           mob.lastAttack = nowMs;
+          mob.targetId = null;
+          mob.nextTargetScanAt = 0;
           mob.contributions.clear();
         }
         continue;
       }
-      let target = null;
-      let nearest = 230;
-      for (const p of players.values()) {
-        if (p.hp <= 0) continue;
-        const d = distance(p, mob);
-        if (d < nearest) { nearest = d; target = p; }
+      // Movement and attacks remain on the 20 Hz game tick. Expensive
+      // searches across all players run 4 Hz while aggroed and 1.25 Hz idle.
+      // A cached target is checked every tick so it cannot attack after
+      // leaving range or dying before the next full search.
+      let target = mob.targetId === null ? null : players.get(mob.targetId);
+      let nearestSquared = target?.hp > 0 ? distanceSquared(target, mob) : Infinity;
+      if (nearestSquared >= MONSTER_AGGRO_RADIUS_SQUARED) {
+        target = null;
+        mob.targetId = null;
+        mob.nextTargetScanAt = Math.min(mob.nextTargetScanAt, nowMs);
       }
+      if (nowMs >= mob.nextTargetScanAt) {
+        target = null;
+        nearestSquared = MONSTER_AGGRO_RADIUS_SQUARED;
+        for (const candidate of players.values()) {
+          if (candidate.hp <= 0) continue;
+          const d = distanceSquared(candidate, mob);
+          if (d < nearestSquared) {
+            nearestSquared = d;
+            target = candidate;
+          }
+        }
+        mob.targetId = target?.id ?? null;
+        mob.nextTargetScanAt = nowMs +
+          (target ? ACTIVE_TARGET_SCAN_MS : IDLE_TARGET_SCAN_MS);
+      }
+      // No nearby player = no pathfinding, no attacks, only return home.
+      if (!target && mob.x === mob.spawnX && mob.y === mob.spawnY) continue;
       if (!target) {
         const home = { x: mob.spawnX, y: mob.spawnY };
         const d = distance(mob, home);
@@ -190,6 +218,7 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
         }
         continue;
       }
+      const nearest = Math.sqrt(nearestSquared);
       if (nearest > 34) {
         const travel = Math.min(mob.speed * dt, Math.max(0, nearest - 32));
         mob.x = clamp(mob.x + (target.x - mob.x) / nearest * travel, 16, ARENA.width - 16);
