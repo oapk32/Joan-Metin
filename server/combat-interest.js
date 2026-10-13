@@ -40,9 +40,9 @@ export function createSectorIndex(world) {
           }
         }
       }
-      // Unique IDs, deterministic order; stable diffs independent of map order.
-      result.players.sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }));
-      result.mobs.sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }));
+      // Original server iteration order is stable. Sorting IDs with
+      // localeCompare for EVERY viewer was dominating the 30-player benchmark.
+      // Deltas match by ID, so sorting is unnecessary for correctness.
       return result;
     }
   };
