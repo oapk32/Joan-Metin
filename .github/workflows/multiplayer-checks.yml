@@ -1,0 +1,29 @@
+name: Multiplayer preview checks
+on:
+  push:
+    branches: [multiplayer-dev]
+  pull_request:
+    branches: [multiplayer-dev]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install server dependencies
+        working-directory: server
+        run: npm install --no-audit --no-fund
+      - name: Syntax validation
+        working-directory: server
+        run: npm run check
+      - name: Original release parity
+        run: python scripts/verify.py
+      - name: Multiplayer integration test
+        working-directory: server
+        run: npm test
