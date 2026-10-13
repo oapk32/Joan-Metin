@@ -10,6 +10,7 @@ const MAX_MESSAGE_BYTES = 256;
 // No character economics are modified in PostgreSQL in this prototype.
 export function startCombatArena({ loadCharacter, clock = () => Date.now(), world = createCombatWorld() }) {
   const clients = new Map(); // WebSocket => bound character ID
+  const sentLootRevisions = new Map(); // send personal items only when they change
   let lastStep = clock();
 
   const tick = setInterval(() => {
@@ -17,12 +18,21 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
     world.step(Math.max(0, (now - lastStep) / 1000), now);
     lastStep = now;
   }, TICK_MS);
+  function sendLootIfChanged(socket, playerId) {
+    const revision = world.lootVersion(playerId);
+    if (sentLootRevisions.get(socket) !== revision && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(world.personalLootState(playerId)));
+      sentLootRevisions.set(socket, revision);
+    }
+  }
   const broadcast = setInterval(() => {
     if (!clients.size) return;
+    // Encode the public world once; drop/inventory lists are not resent at 8 Hz.
+    const publicState = JSON.stringify(world.snapshotWorld());
     for (const [socket, playerId] of clients) {
       if (socket.readyState === WebSocket.OPEN) {
-        // The common world stays shared, while ground loot is private to its owner.
-        socket.send(JSON.stringify(world.snapshot(playerId)));
+        socket.send(publicState);
+        sendLootIfChanged(socket, playerId);
       }
     }
   }, BROADCAST_MS);
@@ -70,7 +80,8 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
       type: 'combat-welcome', id: player.id,
       note: 'Arena demo only. Rewards do not persist.'
     }));
-    socket.send(JSON.stringify(world.snapshot(player.id)));
+    socket.send(JSON.stringify(world.snapshotWorld()));
+    sendLootIfChanged(socket, player.id);
 
     let lastInput = 0;
     socket.on('message', bytes => {
@@ -92,7 +103,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
         const result = world.pickUp(player.id, msg.dropId, clock());
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: 'combat-pickup-result', ...result }));
-          if (result.ok) socket.send(JSON.stringify(world.snapshot(player.id)));
+          if (result.ok) sendLootIfChanged(socket, player.id);
         }
       }
     });
@@ -100,6 +111,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
       // The player may have been disconnected after a newer connection attempt.
       if (clients.get(socket) === character.id) {
         clients.delete(socket);
+        sentLootRevisions.delete(socket);
         world.leave(character.id);
       }
     });
@@ -110,6 +122,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
     clearInterval(broadcast);
     for (const socket of clients.keys()) socket.close(1001, 'Server stopping');
     clients.clear();
+    sentLootRevisions.clear();
   }
   return { connect, stop, world };
 }
