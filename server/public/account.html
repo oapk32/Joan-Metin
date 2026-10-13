@@ -16,6 +16,23 @@
       <h2>Jsi přihlášený</h2>
       <p>Účet: <strong id="loggedName"></strong></p>
       <p class="actions"><a class="button primary" href="/joan/">Vstoupit do Joanu</a> <button id="logout" type="button">Odhlásit se</button></p>
+      <hr>
+      <h3>Online postavy v PostgreSQL</h3>
+      <p class="hint">Zatím jde o samostatný seznam postav na účtu. Herní postup ve v134 se stále ukládá v prohlížeči a do online postavy se ještě nepřenáší.</p>
+      <ul id="onlineCharacters" aria-label="Moje online postavy"></ul>
+      <form id="createCharacter" autocomplete="off">
+        <label for="characterName">Jméno nové postavy</label>
+        <input id="characterName" minlength="2" maxlength="24" required>
+        <label for="characterClass">Povolání</label>
+        <select id="characterClass" required>
+          <option value="warrior">Válečník</option>
+          <option value="ninja">Ninja</option>
+          <option value="sura">Sura</option>
+          <option value="shaman">Šaman</option>
+        </select>
+        <button id="createCharacterBtn" type="submit">Založit online postavu</button>
+      </form>
+      <p id="characterStatus" role="status" aria-live="polite"></p>
     </section>
     <section id="loggedOut" hidden>
       <div class="tabs"><button id="loginMode" type="button" aria-pressed="true">Přihlášení</button><button id="registerMode" type="button" aria-pressed="false">Registrace</button></div>
