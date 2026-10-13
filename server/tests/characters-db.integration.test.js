@@ -19,6 +19,10 @@ test('PostgreSQL 16: account isolation, character creation, optimistic transacti
   };
   const alice = await account('a');
   const bob = await account('b');
+  await assert.rejects(
+    pool.query('UPDATE accounts SET username = $2 WHERE id = $1', [alice, 'tampered_account']),
+    error => error.code === '42501'
+  );
 
   const hero = await createCharacter(pool, alice, { name: 'A' + key, cls: 'warrior' });
   assert.equal(hero.level, 1);
