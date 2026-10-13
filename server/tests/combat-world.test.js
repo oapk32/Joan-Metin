@@ -101,3 +101,70 @@ test('Rewards never come from a client-supplied payload', () => {
   assert.equal(p.yang, 0);
   assert.equal(p.hp, 100);
 });
+
+
+test('Shared kill rolls loot independently and hides private drops from other players', () => {
+  const rolls = [0.10, 0.90]; // Alice wins her roll; Bob does not
+  const world = createCombatWorld({ random: () => rolls.shift() });
+  const alice = world.join(hero('1', 'Alice'));
+  const bob = world.join(hero('2', 'Bob'));
+  alice.x = bob.x = 440;
+  alice.y = bob.y = 160;
+  world.attack('1', 'wolf-1', 1000);
+  world.attack('2', 'wolf-1', 1000);
+  world.attack('1', 'wolf-1', 1550);
+  const kill = world.attack('2', 'wolf-1', 1550);
+  assert.deepEqual(kill.awarded.sort(), ['1','2']);
+  assert.equal(world.snapshot('1').personalDrops.length, 1);
+  assert.equal(world.snapshot('2').personalDrops.length, 0);
+  assert.equal(world.snapshot().personalDrops.length, 0);
+  assert.equal(world.snapshot('2').testInventory.length, 0);
+  const drop = world.snapshot('1').personalDrops[0];
+  assert.equal(world.pickUp('2', drop.id, 1600).reason, 'not_owned_or_expired');
+  assert.equal(world.snapshot('1').personalDrops.length, 1);
+  assert.equal(world.pickUp('1', drop.id, 1600).ok, true);
+  assert.equal(world.snapshot('1').personalDrops.length, 0);
+  assert.equal(world.snapshot('1').testInventory[0].itemId, 'test-wolf-pelt');
+  assert.equal(world.snapshot('2').testInventory.length, 0);
+  assert.equal(world.pickUp('1', drop.id, 1601).ok, false);
+});
+
+test('Both contributors may independently receive the same private drop', () => {
+  const world = createCombatWorld({ random: () => 0.05 });
+  const alice = world.join(hero('1', 'Alice'));
+  const bob = world.join(hero('2', 'Bob'));
+  alice.x = bob.x = 440;
+  alice.y = bob.y = 160;
+  world.attack('1', 'wolf-1', 1000);
+  world.attack('2', 'wolf-1', 1000);
+  world.attack('1', 'wolf-1', 1550);
+  world.attack('2', 'wolf-1', 1550);
+  const aDrop = world.snapshot('1').personalDrops[0];
+  const bDrop = world.snapshot('2').personalDrops[0];
+  assert.ok(aDrop && bDrop);
+  assert.notEqual(aDrop.id, bDrop.id);
+  assert.equal(aDrop.itemId, bDrop.itemId);
+  assert.equal(world.pickUp('1', bDrop.id, 1600).reason, 'not_owned_or_expired');
+  assert.equal(world.pickUp('2', aDrop.id, 1600).reason, 'not_owned_or_expired');
+  assert.equal(world.pickUp('1', aDrop.id, 1600).ok, true);
+  assert.equal(world.pickUp('2', bDrop.id, 1600).ok, true);
+  assert.equal(world.snapshot('1').testInventory.length, 1);
+  assert.equal(world.snapshot('2').testInventory.length, 1);
+});
+
+test('Private loot cannot be picked up from far away, after expiry, or by disconnected owner', () => {
+  const world = createCombatWorld({ random: () => 0.05 });
+  const alice = world.join(hero('1', 'Alice'));
+  alice.x = 440; alice.y = 160;
+  for (const time of [1000,1550,2100,2650]) world.attack('1','wolf-1',time);
+  const drop = world.snapshot('1').personalDrops[0];
+  assert.ok(drop);
+  alice.x = 100; alice.y = 200;
+  assert.equal(world.pickUp('1', drop.id, 2700).reason, 'out_of_range');
+  alice.x = 440; alice.y = 160;
+  world.step(0.05, 32651);
+  assert.equal(world.snapshot('1').personalDrops.length, 0);
+  assert.equal(world.pickUp('1', drop.id, 32651).reason, 'not_owned_or_expired');
+  world.leave('1');
+  assert.equal(world.pickUp('1', drop.id, 32652).reason, 'invalid_drop');
+});
