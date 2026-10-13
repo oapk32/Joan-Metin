@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Emits a versioned, transactional psql program to stdout; it does NOT connect
@@ -60,6 +60,6 @@ export function migrationProgram() {
   return chunks.join('\n') + '\n';
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === join(process.cwd(), process.argv[1].replace(/^\.\//, ''))) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   process.stdout.write(migrationProgram());
 }
