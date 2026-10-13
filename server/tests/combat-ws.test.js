@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import WebSocket, { WebSocketServer } from 'ws';
 import { startCombatArena } from '../combat-ws.js';
+import { createCombatWorld } from '../combat-world.js';
 
 async function waitFor(predicate, timeout = 5000) {
   const start = Date.now();
@@ -68,4 +69,62 @@ test('Shared WebSocket arena verifies character ownership and ignores arbitrary 
   await once(stolen, 'open');
   const [stolenCode] = await once(stolen, 'close');
   assert.equal(stolenCode, 1008);
+});
+
+
+test('Private drop data is never broadcast to another WebSocket viewer', async t => {
+  const world = createCombatWorld({ random: () => 0.01 });
+  const originalJoin = world.join;
+  world.join = character => {
+    const player = originalJoin(character);
+    if (player) { player.x = 440; player.y = 160; }
+    return player;
+  };
+  const arena = startCombatArena({
+    world,
+    loadCharacter: async (_owner, id) =>
+      ({ id, name: 'Hero' + id, class: 'warrior' })
+  });
+  t.after(() => arena.stop());
+
+  const server = createServer((req, res) => res.writeHead(404).end());
+  const wss = new WebSocketServer({ server, maxPayload: 1024 });
+  wss.on('connection', (socket, req) =>
+    void arena.connect(socket, req, { account: { id: '10' } }));
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => { wss.close(); server.close(); });
+  const url = 'ws://127.0.0.1:' + server.address().port;
+  const a = new WebSocket(url + '/combat-ws?character=1');
+  const b = new WebSocket(url + '/combat-ws?character=2');
+  t.after(() => { a.terminate(); b.terminate(); });
+  const incomingA = [], incomingB = [];
+  a.on('message', data => incomingA.push(JSON.parse(String(data))));
+  b.on('message', data => incomingB.push(JSON.parse(String(data))));
+  await Promise.all([once(a, 'open'), once(b, 'open')]);
+  await waitFor(() => incomingA.some(m => m.type === 'combat-snapshot' && m.players.length === 2));
+
+  world.attack('1', 'wolf-1', 1000);
+  world.attack('2', 'wolf-1', 1000);
+  world.attack('1', 'wolf-1', 1550);
+  world.attack('2', 'wolf-1', 1550);
+  const aliceDrop = world.snapshot('1').personalDrops[0];
+  const bobDrop = world.snapshot('2').personalDrops[0];
+  assert.ok(aliceDrop && bobDrop);
+  assert.notEqual(aliceDrop.id, bobDrop.id);
+
+  await waitFor(() => incomingA.some(m => m.type === 'combat-snapshot' &&
+    m.personalDrops?.some(d => d.id === aliceDrop.id)) &&
+    incomingB.some(m => m.type === 'combat-snapshot' &&
+    m.personalDrops?.some(d => d.id === bobDrop.id)));
+  assert.ok(incomingA.every(m => !m.personalDrops?.some(d => d.id === bobDrop.id)));
+  assert.ok(incomingB.every(m => !m.personalDrops?.some(d => d.id === aliceDrop.id)));
+
+  b.send(JSON.stringify({ type: 'combat-pickup', dropId: aliceDrop.id }));
+  await waitFor(() => incomingB.some(m => m.type === 'combat-pickup-result'));
+  assert.equal(incomingB.find(m => m.type === 'combat-pickup-result').reason, 'not_owned_or_expired');
+  a.send(JSON.stringify({ type: 'combat-pickup', dropId: aliceDrop.id }));
+  await waitFor(() => incomingA.some(m => m.type === 'combat-pickup-result' && m.ok));
+  assert.equal(world.snapshot('1').testInventory.length, 1);
+  assert.equal(world.snapshot('2').testInventory.length, 0);
 });
