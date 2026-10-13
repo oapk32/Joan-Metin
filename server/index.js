@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -80,15 +80,30 @@ const server = http.createServer(async (req, res) => {
   const resource = ASSETS.get(pathname);
   if (!resource) { res.writeHead(404).end('Not found'); return; }
   try {
-    const bytes = await readFile(resource[0]);
-    res.writeHead(200, {
+    // JavaScript bundles (including the multi-MB audio-data.js) and styles
+    // can be kept in the browser's private cache. Every reuse is revalidated,
+    // so a git pull invalidates older files without requiring URL versioning.
+    const cacheable = /\.(?:js|css)$/.test(pathname);
+    const headers = {
       'content-type': resource[1],
-      'cache-control': 'no-store',
+      'cache-control': cacheable ? 'private, max-age=0, must-revalidate' : 'no-store',
       'x-content-type-options': 'nosniff',
       ...(authHttp && (pathname === '/account/' || pathname === '/arena/') ? {
         'content-security-policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
       } : {})
-    });
+    };
+    if (cacheable) {
+      const metadata = await stat(resource[0]);
+      const etag = 'W/"' + metadata.size.toString(16) + '-' +
+        Math.trunc(metadata.mtimeMs).toString(16) + '"';
+      headers.etag = etag;
+      if (req.headers['if-none-match']?.split(',').map(x => x.trim()).includes(etag)) {
+        res.writeHead(304, headers).end();
+        return;
+      }
+    }
+    const bytes = await readFile(resource[0]);
+    res.writeHead(200, headers);
     res.end(bytes);
   } catch (error) {
     console.error('File response error:', pathname, error.message);
