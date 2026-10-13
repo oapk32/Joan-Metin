@@ -40,6 +40,16 @@ test('Joan multiplayer: serves original client and broadcasts player class, loca
   const client = await fetch(base + '/joan/js/mp-bridge.js');
   assert.equal(client.status, 200);
   assert.match(await client.text(), /JoanMP/);
+  const etag = client.headers.get('etag');
+  assert.match(etag, /^W\/"[a-f0-9]+-[a-f0-9]+"$/);
+  assert.match(client.headers.get('cache-control'), /private, max-age=0, must-revalidate/);
+  const cached = await fetch(base + '/joan/js/mp-bridge.js', {
+    headers: { 'if-none-match': etag }
+  });
+  assert.equal(cached.status, 304);
+  assert.equal(await cached.text(), '');
+  const html = await fetch(base + '/joan/');
+  assert.equal(html.headers.get('cache-control'), 'no-store');
 
   const a = new WebSocket(wsBase + '/joan-ws');
   const b = new WebSocket(wsBase + '/joan-ws');
