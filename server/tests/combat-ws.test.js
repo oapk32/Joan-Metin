@@ -104,10 +104,12 @@ test('Private drop data is never broadcast to another WebSocket viewer', async t
   await Promise.all([once(a, 'open'), once(b, 'open')]);
   await waitFor(() => incomingA.some(m => m.type === 'combat-snapshot' && m.players.length === 2));
 
-  world.attack('1', 'wolf-1', 1000);
-  world.attack('2', 'wolf-1', 1000);
-  world.attack('1', 'wolf-1', 1550);
-  world.attack('2', 'wolf-1', 1550);
+  // Use epoch time: the live arena's periodic clock also uses Date.now().
+  const now = Date.now();
+  world.attack('1', 'wolf-1', now);
+  world.attack('2', 'wolf-1', now);
+  world.attack('1', 'wolf-1', now + 550);
+  world.attack('2', 'wolf-1', now + 550);
   const aliceDrop = world.snapshot('1').personalDrops[0];
   const bobDrop = world.snapshot('2').personalDrops[0];
   assert.ok(aliceDrop && bobDrop);
