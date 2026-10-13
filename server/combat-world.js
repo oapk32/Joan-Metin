@@ -21,11 +21,11 @@ const MOB_DEFINITIONS = [
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-export function createCombatWorld({ random = Math.random } = {}) {
+export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_DEFINITIONS } = {}) {
   const players = new Map(); // character ID => mutable player state
   const dropsByPlayer = new Map(); // personal ground loot, never a shared pool
   let nextDropId = 1;
-  const mobs = new Map(MOB_DEFINITIONS.map(d => [d.id, {
+  const mobs = new Map(mobDefinitions.map(d => [d.id, {
     ...d, maxHp: d.hp, spawnX: d.x, spawnY: d.y,
     deadUntil: 0, lastAttack: 0, contributions: new Map()
   }]));
