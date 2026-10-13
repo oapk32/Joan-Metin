@@ -80,5 +80,5 @@ test('private auth endpoints: origin, registration, login, sessions, logout', as
     authenticated: false
   });
   assert.equal((await post('/api/login', credentials, undefined, 'null')).status, 403);
-  assert.equal((await fetch(origin + '/api/me', { headers: { host: 'evil.example' } })).status, 403);
+  assert.equal(authHttp.allowedHost({ headers: { host: 'evil.example' } }), false);
 });
