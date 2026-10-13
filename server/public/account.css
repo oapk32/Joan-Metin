@@ -18,3 +18,9 @@ button:disabled { opacity: .55; cursor: wait; }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 #status { min-height: 1.3em; font-size: 13px; }
 [hidden] { display: none !important; }
+
+select { width: 100%; padding: 12px; font: inherit; border-radius: 6px; border: 1px solid #72846b; background: #0f1e17; color: #fff; }
+hr { border: none; border-top: 1px solid #60715b; margin: 22px 0; }
+#onlineCharacters { list-style: none; padding: 0; display: grid; gap: 8px; }
+#onlineCharacters li { border: 1px solid #58694f; padding: 9px 11px; border-radius: 6px; background: #102017; }
+#characterStatus { min-height: 1.3em; font-size: 13px; }
