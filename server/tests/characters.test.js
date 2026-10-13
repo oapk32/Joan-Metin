@@ -36,7 +36,7 @@ test('Account-scoped list/get always filters on account_id', async () => {
   assert.deepEqual(queries[1].params, ['2', '91']);
 });
 
-test('Creation locks owner row and commits only valid owned character', async () => {
+test('Creation locks account using advisory transaction lock and commits only valid owned character', async () => {
   const queries = [];
   let released = false;
   const db = {
@@ -53,9 +53,10 @@ test('Creation locks owner row and commits only valid owned character', async ()
   };
   const character = await createCharacter({ connect: async () => db }, '3', { name: 'Hrdina', cls: 'warrior' });
   assert.equal(character.id, '7');
-  assert.deepEqual(queries.map(entry => entry.sql.split(' ')[0]), ['BEGIN', 'SELECT', 'SELECT', 'INSERT', 'COMMIT']);
-  assert.match(queries[1].sql, /FOR UPDATE/);
-  assert.deepEqual(queries[3].params, ['3', 'Hrdina', 'warrior']);
+  assert.deepEqual(queries.map(entry => entry.sql.split(' ')[0]), ['BEGIN', 'SELECT', 'SELECT', 'SELECT', 'INSERT', 'COMMIT']);
+  assert.match(queries[1].sql, /pg_advisory_xact_lock/);
+  assert.doesNotMatch(queries[2].sql, /FOR UPDATE/);
+  assert.deepEqual(queries[4].params, ['3', 'Hrdina', 'warrior']);
   assert.equal(released, true);
 });
 
