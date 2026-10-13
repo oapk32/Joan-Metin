@@ -40,6 +40,10 @@ ručně založené tabulky `accounts` a `characters`.
 `revision`, `updated_at`, index a tabulku `character_saves` se snapshotem
 JSONB (do 256 KiB), typem schématu a časem uložení.
 
+`server/migrations/003_least_privilege.sql` – odebere aplikaci zbytečná
+oprávnění DELETE k účtům a postavám a UPDATE k účtům. Stávající
+data ani hesla nemění.
+
 `server/migrations/migrate.js` – generuje SQL pro `psql`:
 - každá migrace se provede v transakci pod PostgreSQL advisory lockem;
 - historie `schema_migrations` uchovává číslo, název a SHA-256 kontrolní součet;
