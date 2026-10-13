@@ -1,14 +1,15 @@
 {
   "name": "joan-multiplayer-prototype",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
-  "description": "Joan v134 private account login beta with PostgreSQL and WebSocket presence",
+  "description": "Joan private beta: authenticated online characters and PostgreSQL migrations",
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js && node --check db.js && node --check db-check.js && node --check auth.js && node --check auth-http.js && node --check public/account.js && node --check ../client/js/mp-bridge.js && node --check ../client/js/game.js",
+    "check": "node --check index.js && node --check db.js && node --check db-check.js && node --check auth.js && node --check auth-http.js && node --check public/account.js && node --check ../client/js/mp-bridge.js && node --check ../client/js/game.js && node --check characters.js && node --check characters-http.js && node --check migrations/migrate.js",
     "test": "node --test tests/*.test.js",
-    "db:check": "node db-check.js"
+    "db:check": "node db-check.js",
+    "db:migrations": "node migrations/migrate.js"
   },
   "dependencies": {
     "ws": "^8.18.3",
