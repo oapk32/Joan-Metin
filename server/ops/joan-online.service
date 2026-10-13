@@ -1,0 +1,27 @@
+[Unit]
+Description=Joan Metiny Online - private Node.js beta
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=opc
+Group=opc
+WorkingDirectory=/home/opc/Joan-Metin-MP/server
+ExecStart=/usr/bin/node /home/opc/Joan-Metin-MP/server/index.js
+Environment=JOAN_AUTH_ENABLED=1
+Environment=JOAN_BIND_HOST=127.0.0.1
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/joan-online.env
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
