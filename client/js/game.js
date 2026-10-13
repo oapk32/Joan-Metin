@@ -517,7 +517,6 @@
     update(dt);
     window.JoanMP?.tick(player, current, now);
     draw();
-    window.JoanMP?.draw(cx, player, current, V38.scale);
     requestAnimationFrame(loop);
   }
   function setMouse(e) {
@@ -13913,6 +13912,7 @@
     for (let m of world.mobs) if (!m.dead) list.push({ y: m.y, k: 3, o: m });
     for (let d of drops) if (!d.used) list.push({ y: d.y - 1, k: 5, o: d });
     if (!isDead()) list.push({ y: player.y, k: 4, o: player });
+    for (const peer of window.JoanMP?.getPeers() || []) list.push({ y: peer.y, k: 4.5, o: peer });
     list.sort((a, b) => a.y - b.y || a.k - b.k);
     let F = V38.dbg || {};
     for (let e of list) {
@@ -13922,6 +13922,7 @@
       else if (e.k === 2) v38DrawMetin(e.o);
       else if (e.k === 3) v38DrawMob(e.o);
       else if (e.k === 4) v38DrawHero();
+      else if (e.k === 4.5) v38DrawOnlinePeer(e.o);
       else v38DrawDrop(e.o);
     }
   }
@@ -17228,6 +17229,54 @@
     }
     return p;
   }
+  // Multiplayer presence: draw remote avatars with the same existing v38 character rig.
+  // This does not manipulate local player state or share combat/equipment data.
+  function v38DrawOnlinePeer(peer) {
+    const cls = V38_CLASS_LOOK[peer.cls] ? peer.cls : 'warrior';
+    const look = V38_CLASS_LOOK[cls];
+    const cloth = {
+      warrior: ['#9e7355', '#4f3b30', '#d3a77e'],
+      ninja: ['#516a59', '#253d36', '#a0b59a'],
+      sura: ['#64587d', '#342d4b', '#b7a3db'],
+      shaman: ['#936273', '#4b2d40', '#d5a8b5'],
+      lycan: ['#806d4a', '#423a2c', '#c4ab75']
+    }[cls];
+    const spec = {
+      scale: 1.25, skin: look.skin, hair: look.hair, hairStyle: look.hairStyle,
+      legs: look.pants, boots: look.boots,
+      body: { shape: cls === 'shaman' ? 'robe' : 'cloth', light: cloth[0], dark: cloth[1], trim: cloth[2], tier: 0, skirt: cls !== 'shaman' },
+      sleeve: cloth[0], mask: cls === 'ninja' ? look.mask : null,
+      build: cls === 'warrior' || cls === 'lycan' ? 'muscle' : cls === 'sura' ? 'slim' : null,
+      look: { cls, tier: 0, armor: false, p9: false, gold: false, hood: false },
+      stance: cls === 'warrior' || cls === 'lycan', agile: cls === 'ninja',
+      darkHand: cls === 'sura', weapon: { kind: 'unarmed' }
+    };
+    const angle = Number.isFinite(peer.dir) ? peer.dir : 0;
+    const view = v38View(angle);
+    const pose = {
+      view: view.view, flip: view.flip, aim: v38LocalAngle(angle, view.flip),
+      walk: peer.walk || 0, moving: peer.moving || 0,
+      breath: Math.sin(time * 2 + (peer.x || 0)) * 0.35,
+      active: false, swing: 0, draw: 0, casting: false
+    };
+    v38Shadow(peer.x, peer.y + 1, 15, 5, 0.38);
+    cx.save();
+    cx.globalAlpha *= 0.95;
+    cx.translate(peer.x, peer.y);
+    v38PaintRig(cx, spec, pose);
+    cx.restore();
+    const name = String(peer.name || 'Hráč').slice(0, 24);
+    cx.save();
+    cx.textAlign = 'center';
+    cx.font = 'bold 13px system-ui';
+    cx.lineWidth = 3;
+    cx.strokeStyle = '#192833';
+    cx.fillStyle = '#aadeff';
+    cx.strokeText(name, peer.x, peer.y - 75);
+    cx.fillText(name, peer.x, peer.y - 75);
+    cx.restore();
+  }
+
   function v38DrawHero() {
     let { x, y } = player,
       mounted = isMounted(),
