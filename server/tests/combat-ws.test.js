@@ -49,6 +49,14 @@ test('Shared WebSocket arena verifies character ownership and ignores arbitrary 
   assert.deepEqual(lookups.sort(), [['10', '1'], ['10', '2']]);
   const first = messagesA.find(x => x.type === 'combat-snapshot' && x.players.length === 2);
   assert.equal(first.mobs.length, 2); // remote orc is hidden by spatial interest filtering
+  assert.equal(first.mobs.some(m => m.id === 'orc-1'), false);
+  // Moving players are transmitted as deltas, not full monster snapshots.
+  alice.send(JSON.stringify({ type: 'combat-input', x: 1, y: 0 }));
+  await waitFor(() => messagesA.some(m => m.type === 'combat-delta' &&
+    m.playersChanged.some(p => p.id === '1' && p.x > 115)));
+  alice.send(JSON.stringify({ type: 'combat-input', x: 0, y: 0 }));
+  assert.ok(messagesA.filter(m => m.type === 'combat-delta')
+    .every(m => !Object.hasOwn(m, 'personalDrops')));
 
   alice.send(JSON.stringify({ type: 'combat-input', x: 1, y: 0, teleport: [900, 500], yang: 999999 }));
   alice.send(JSON.stringify({ type: 'combat-attack', mobId: 'wolf-1', damage: 999999, xp: 999999 }));
