@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCombatWorld, ARENA, ATTACK_RANGE } from '../combat-world.js';
+import { createCombatWorld, ARENA, ATTACK_RANGE, PERSONAL_LOOT_LIFETIME_MS, ACTIVE_TARGET_SCAN_MS, IDLE_TARGET_SCAN_MS } from '../combat-world.js';
 
 const hero = (id, name, cls = 'warrior') => ({ id, name, class: cls });
 
@@ -162,9 +162,67 @@ test('Private loot cannot be picked up from far away, after expiry, or by discon
   alice.x = 100; alice.y = 200;
   assert.equal(world.pickUp('1', drop.id, 2700).reason, 'out_of_range');
   alice.x = 440; alice.y = 160;
-  world.step(0.05, 32651);
+  assert.equal(PERSONAL_LOOT_LIFETIME_MS, 120000);
+  // The last hit created the drop at 2650 ms.
+  world.step(0.05, 122649);
+  assert.equal(world.snapshot('1').personalDrops.length, 1);
+  assert.equal(world.pickUp('1', drop.id, 122650).reason, 'not_owned_or_expired');
+  // Cleanup scans at 1 Hz; expiration is always enforced at pickup time.
+  world.step(0.05, 123650);
   assert.equal(world.snapshot('1').personalDrops.length, 0);
-  assert.equal(world.pickUp('1', drop.id, 32651).reason, 'not_owned_or_expired');
   world.leave('1');
-  assert.equal(world.pickUp('1', drop.id, 32652).reason, 'invalid_drop');
+  assert.equal(world.pickUp('1', drop.id, 123651).reason, 'invalid_drop');
+});
+
+
+test('No arbitrary cap on ground drops or test inventory', () => {
+  const manyMobs = Array.from({ length: 40 }, (_, index) => ({
+    id: 'tiny-' + index, kind: 'Vlk',
+    x: 115, y: 270, hp: 1, speed: 0, attack: 0, xp: 0, yang: 0
+  }));
+  const world = createCombatWorld({ random: () => 0, mobDefinitions: manyMobs });
+  world.join(hero('1', 'Alice'));
+  for (let index = 0; index < 40; index++) {
+    assert.equal(world.attack('1', 'tiny-' + index, 1000 + 550 * index).ok, true);
+  }
+  const drops = world.snapshot('1').personalDrops;
+  assert.equal(drops.length, 40);
+  assert.equal(world.personalLootState('1').revision, 40);
+  for (const drop of drops) {
+    assert.equal(world.pickUp('1', drop.id, 23000).ok, true);
+  }
+  assert.equal(world.snapshot('1').personalDrops.length, 0);
+  assert.equal(world.snapshot('1').testInventory.length, 40);
+  assert.equal(world.personalLootState('1').revision, 80);
+});
+
+test('Idle monsters scan less frequently, then wake when a player approaches', () => {
+  assert.equal(ACTIVE_TARGET_SCAN_MS, 250);
+  assert.equal(IDLE_TARGET_SCAN_MS, 800);
+  const world = createCombatWorld();
+  const player = world.join(hero('1', 'Alice'));
+  world.step(0.05, 1000); // player starts far away from wolf-1
+  const wolf = world.snapshot().mobs.find(m => m.id === 'wolf-1');
+  assert.equal(wolf.hp, 70);
+  player.x = wolf.x; player.y = wolf.y;
+  world.step(0.05, 1750); // no full player search until idle scan is due
+  assert.equal(player.hp, 100);
+  world.step(0.05, 1800);
+  assert.equal(player.hp, 93);
+});
+
+test('Public world snapshots omit private loot, while the owner sees item changes', () => {
+  const world = createCombatWorld({
+    random: () => 0,
+    mobDefinitions: [{ id: 'weak-wolf', kind: 'Vlk', x: 115, y: 270,
+      hp: 1, speed: 0, attack: 0, xp: 0, yang: 0 }]
+  });
+  world.join(hero('1', 'Alice'));
+  assert.equal(world.lootVersion('1'), 0);
+  assert.equal(world.attack('1', 'weak-wolf', 1000).ok, true);
+  assert.equal(world.lootVersion('1'), 1);
+  assert.equal(Object.hasOwn(world.snapshotWorld(), 'personalDrops'), false);
+  assert.equal(Object.hasOwn(world.snapshotWorld(), 'testInventory'), false);
+  assert.equal(world.personalLootState('1').personalDrops.length, 1);
+  assert.equal(world.personalLootState('not-an-owner').personalDrops.length, 0);
 });
