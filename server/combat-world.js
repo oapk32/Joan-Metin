@@ -187,7 +187,7 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
       // leaving range or dying before the next full search.
       let target = mob.targetId === null ? null : players.get(mob.targetId);
       let nearestSquared = target?.hp > 0 ? distanceSquared(target, mob) : Infinity;
-      if (nearestSquared >= MONSTER_AGGRO_RADIUS_SQUARED) {
+      if (mob.targetId !== null && nearestSquared >= MONSTER_AGGRO_RADIUS_SQUARED) {
         target = null;
         mob.targetId = null;
         mob.nextTargetScanAt = Math.min(mob.nextTargetScanAt, nowMs);
