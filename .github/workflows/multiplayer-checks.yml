@@ -50,6 +50,13 @@ jobs:
             const ix = audio.indexOf(str);
             console.log('AUDIO_MATCH', str, ix, ix >= 0 ? audio.slice(Math.max(0, ix - 60), ix + 180) : '');
           }
+          for (const str of ['AUDIO_ASSETS =', 'AUDIO_ASSETS=', 'const AUDIO_ASSETS', 'let AUDIO_ASSETS', 'window.__AUDIO_ASSETS__', 'musicAudio', 'musicEl', 'setBackgroundMusic', 'ensureMusic', 'playBgm', 'new Audio(']) {
+            let ix = game.indexOf(str); let n=0;
+            while (ix >= 0 && n++ < 4) {
+              console.log('AUDIO_REF', str, ix, JSON.stringify(game.slice(Math.max(0, ix-200), ix+350)));
+              ix=game.indexOf(str, ix+str.length);
+            }
+          }
           console.log('HTML_TAIL', html.slice(-180));
           NODE
       - name: Syntax validation
