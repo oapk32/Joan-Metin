@@ -115,12 +115,18 @@ test('Private drop data is never broadcast to another WebSocket viewer', async t
   assert.ok(aliceDrop && bobDrop);
   assert.notEqual(aliceDrop.id, bobDrop.id);
 
-  await waitFor(() => incomingA.some(m => m.type === 'combat-snapshot' &&
+  await waitFor(() => incomingA.some(m => m.type === 'combat-loot' &&
     m.personalDrops?.some(d => d.id === aliceDrop.id)) &&
-    incomingB.some(m => m.type === 'combat-snapshot' &&
+    incomingB.some(m => m.type === 'combat-loot' &&
     m.personalDrops?.some(d => d.id === bobDrop.id)));
   assert.ok(incomingA.every(m => !m.personalDrops?.some(d => d.id === bobDrop.id)));
   assert.ok(incomingB.every(m => !m.personalDrops?.some(d => d.id === aliceDrop.id)));
+  assert.ok(incomingA.filter(m => m.type === 'combat-snapshot')
+    .every(m => !Object.hasOwn(m, 'personalDrops') && !Object.hasOwn(m, 'testInventory')));
+  const sentLootCount = incomingA.filter(m => m.type === 'combat-loot').length;
+  await new Promise(resolve => setTimeout(resolve, 280));
+  assert.equal(incomingA.filter(m => m.type === 'combat-loot').length, sentLootCount,
+    'Unchanged item lists must not be re-sent on every movement tick');
 
   b.send(JSON.stringify({ type: 'combat-pickup', dropId: aliceDrop.id }));
   await waitFor(() => incomingB.some(m => m.type === 'combat-pickup-result'));
