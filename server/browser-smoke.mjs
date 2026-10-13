@@ -63,7 +63,8 @@ async function createBrowserPlayer(index) {
   assert.equal((await response.body()).length, 64);
 
   await page.goto(base + '/account/', { waitUntil: 'domcontentloaded' });
-  await page.locator('#loggedName').getByText(username, { exact: true }).waitFor();
+  await until(() => page.locator('#loggedName').textContent().then(name => name === username),
+    'account details in Chromium');
   const name = 'Postava' + randomBytes(5).toString('hex') + index;
   await page.locator('#characterName').fill(name);
   await page.locator('#characterClass').selectOption('warrior');
