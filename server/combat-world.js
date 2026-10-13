@@ -6,8 +6,8 @@ export const ATTACK_RANGE = 82;
 export const ATTACK_COOLDOWN_MS = 550;
 const PLAYER_RESPAWN_MS = 4000;
 const MOB_RESPAWN_MS = 6000;
-export const ACTIVE_TARGET_SCAN_MS = 250;
-export const IDLE_TARGET_SCAN_MS = 800;
+export const ACTIVE_TARGET_SCAN_MS = 1000;
+export const IDLE_TARGET_SCAN_MS = 1000;
 const MONSTER_AGGRO_RADIUS_SQUARED = 230 * 230;
 export const PERSONAL_LOOT_LIFETIME_MS = 120000;
 const PICKUP_RANGE = 65;
@@ -88,6 +88,12 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
     const damage = p.cls === 'warrior' ? 19 : p.cls === 'ninja' ? 17 : 16;
     const dealt = Math.min(damage, mob.hp);
     mob.hp -= dealt;
+    // Being hit wakes a sleeping monster immediately without a full
+    // scan through all players. Subsequent retargeting remains 1 Hz.
+    if (mob.hp > 0) {
+      mob.targetId = p.id;
+      mob.nextTargetScanAt = Math.max(mob.nextTargetScanAt, nowMs + ACTIVE_TARGET_SCAN_MS);
+    }
     const contribution = mob.contributions.get(p.id) || { damage: 0, lastHit: 0 };
     mob.contributions.set(p.id, { damage: contribution.damage + dealt, lastHit: nowMs });
     let defeated = false;
@@ -169,6 +175,9 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
       p.x = clamp(p.x + p.inputX * ARENA.playerSpeed * dt, 18, ARENA.width - 18);
       p.y = clamp(p.y + p.inputY * ARENA.playerSpeed * dt, 18, ARENA.height - 18);
     }
+    // A fully empty arena has no player-facing simulation to update.
+    // Dead monsters still respawn on the next step after a player rejoins.
+    if (players.size === 0) return;
     for (const mob of mobs.values()) {
       if (mob.hp <= 0) {
         if (nowMs >= mob.deadUntil) {
@@ -181,16 +190,16 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
         }
         continue;
       }
-      // Movement and attacks remain on the 20 Hz game tick. Expensive
-      // searches across all players run 4 Hz while aggroed and 1.25 Hz idle.
-      // A cached target is checked every tick so it cannot attack after
-      // leaving range or dying before the next full search.
+      // Movement and attacks remain on the 20 Hz game tick.
+      // Full nearest-player scans run once per second, even during combat.
+      // Idle monsters at home skip all AI and movement between scans.
+      // The cached target's validity/range is checked each tick.
       let target = mob.targetId === null ? null : players.get(mob.targetId);
       let nearestSquared = target?.hp > 0 ? distanceSquared(target, mob) : Infinity;
       if (mob.targetId !== null && nearestSquared >= MONSTER_AGGRO_RADIUS_SQUARED) {
         target = null;
         mob.targetId = null;
-        mob.nextTargetScanAt = Math.min(mob.nextTargetScanAt, nowMs);
+        // Wait for the scheduled 1 Hz scan instead of scanning immediately.
       }
       if (nowMs >= mob.nextTargetScanAt) {
         target = null;
@@ -207,7 +216,8 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
         mob.nextTargetScanAt = nowMs +
           (target ? ACTIVE_TARGET_SCAN_MS : IDLE_TARGET_SCAN_MS);
       }
-      // No nearby player = no pathfinding, no attacks, only return home.
+      // No nearby player = no pathfinding or attacks. At home the
+      // monster sleeps until the next 1 Hz target scan.
       if (!target && mob.x === mob.spawnX && mob.y === mob.spawnY) continue;
       if (!target) {
         const home = { x: mob.spawnX, y: mob.spawnY };
