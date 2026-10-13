@@ -1,0 +1,65 @@
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  let mode = 'login';
+  const status = $('status');
+  const form = $('authForm');
+
+  function setMode(next) {
+    mode = next;
+    $('loginMode').setAttribute('aria-pressed', String(mode === 'login'));
+    $('registerMode').setAttribute('aria-pressed', String(mode === 'register'));
+    $('password').autocomplete = mode === 'register' ? 'new-password' : 'current-password';
+    $('submit').textContent = mode === 'register' ? 'Vytvořit účet' : 'Přihlásit se';
+    status.textContent = '';
+  }
+  $('loginMode').addEventListener('click', () => setMode('login'));
+  $('registerMode').addEventListener('click', () => setMode('register'));
+
+  async function request(path, options = {}) {
+    const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...options });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Požadavek se nezdařil');
+    return result;
+  }
+  async function refresh() {
+    try {
+      const me = await request('/api/me');
+      $('loggedIn').hidden = !me.authenticated;
+      $('loggedOut').hidden = !!me.authenticated;
+      if (me.authenticated) $('loggedName').textContent = me.username;
+      status.textContent = '';
+    } catch {
+      status.textContent = 'Nelze ověřit přihlášení. Zkontroluj spojení se serverem.';
+    }
+  }
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    $('submit').disabled = true;
+    status.textContent = 'Zpracovávám…';
+    try {
+      await request(mode === 'register' ? '/api/register' : '/api/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: $('username').value, password: $('password').value })
+      });
+      $('password').value = '';
+      window.location.assign('/joan/');
+    } catch (error) {
+      status.textContent = error.message;
+      $('password').value = '';
+    } finally {
+      $('submit').disabled = false;
+    }
+  });
+  $('logout').addEventListener('click', async () => {
+    try {
+      await request('/api/logout', { method: 'POST' });
+      await refresh();
+    } catch (error) {
+      status.textContent = error.message;
+    }
+  });
+  refresh();
+})();
