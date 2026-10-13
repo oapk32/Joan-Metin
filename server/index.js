@@ -3,9 +3,23 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
+import { createDatabasePool } from './db.js';
+import { registerAccount, authenticateAccount } from './auth.js';
+import { createAuthHttp } from './auth-http.js';
 
 const HOST = process.env.JOAN_BIND_HOST || '127.0.0.1'; // bind to Tailscale IP only when explicitly requested
 const PORT = Number(process.env.PORT || 3000);
+const AUTH_ENABLED = process.env.JOAN_AUTH_ENABLED === '1';
+// This login prototype only works on localhost, reached through an SSH tunnel.
+if (AUTH_ENABLED && !['127.0.0.1', 'localhost'].includes(HOST)) {
+  throw new Error('Account test mode requires JOAN_BIND_HOST=127.0.0.1 and an SSH tunnel, not a public interface.');
+}
+const pool = AUTH_ENABLED ? createDatabasePool() : null;
+const authHttp = AUTH_ENABLED ? createAuthHttp({
+  port: PORT,
+  register: (username, password) => registerAccount(pool, username, password),
+  authenticate: (username, password) => authenticateAccount(pool, username, password)
+}) : null;
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const WIDTH = 900;
 const HEIGHT = 550;
@@ -22,14 +36,27 @@ const ASSETS = new Map([
   ['/joan/css/game.css', [join(ROOT, '..', 'client', 'css', 'game.css'), 'text/css; charset=utf-8']],
   ['/joan/js/audio-data.js', [join(ROOT, '..', 'client', 'js', 'audio-data.js'), 'text/javascript; charset=utf-8']],
   ['/joan/js/game.js', [join(ROOT, '..', 'client', 'js', 'game.js'), 'text/javascript; charset=utf-8']],
-  ['/joan/js/mp-bridge.js', [join(ROOT, '..', 'client', 'js', 'mp-bridge.js'), 'text/javascript; charset=utf-8']]
+  ['/joan/js/mp-bridge.js', [join(ROOT, '..', 'client', 'js', 'mp-bridge.js'), 'text/javascript; charset=utf-8']],
+  ['/account/', [join(ROOT, 'public', 'account.html'), 'text/html; charset=utf-8']],
+  ['/account/style.css', [join(ROOT, 'public', 'account.css'), 'text/css; charset=utf-8']],
+  ['/account/app.js', [join(ROOT, 'public', 'account.js'), 'text/javascript; charset=utf-8']]
 ]);
 
 const server = http.createServer(async (req, res) => {
-  if (req.method !== 'GET') { res.writeHead(405).end('Method not allowed'); return; }
   let pathname;
   try { pathname = new URL(req.url, 'http://localhost').pathname; }
   catch { res.writeHead(400).end('Bad request'); return; }
+  if (authHttp) {
+    if (!authHttp.allowedHost(req)) { res.writeHead(403).end('Invalid host'); return; }
+    if (await authHttp.handle(req, res, pathname)) return;
+    if (pathname === '/account') { res.writeHead(308, { location: '/account/' }).end(); return; }
+    if ((pathname === '/joan' || pathname.startsWith('/joan/')) && !authHttp.sessionFor(req)) {
+      res.writeHead(302, { location: '/account/', 'cache-control': 'no-store' }).end(); return;
+    }
+  } else if (pathname.startsWith('/account') || pathname.startsWith('/api/')) {
+    res.writeHead(404).end('Not found'); return;
+  }
+  if (req.method !== 'GET') { res.writeHead(405).end('Method not allowed'); return; }
   if (pathname === '/joan') { res.writeHead(308, { location: '/joan/' }).end(); return; }
   const resource = ASSETS.get(pathname);
   if (!resource) { res.writeHead(404).end('Not found'); return; }
@@ -38,7 +65,10 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, {
       'content-type': resource[1],
       'cache-control': 'no-store',
-      'x-content-type-options': 'nosniff'
+      'x-content-type-options': 'nosniff',
+      ...(authHttp && pathname === '/account/' ? {
+        'content-security-policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+      } : {})
     });
     res.end(bytes);
   } catch (error) {
@@ -46,7 +76,22 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(500).end('Server error');
   }
 });
-const wss = new WebSocketServer({ server, maxPayload: 1024 });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
+server.on('upgrade', (request, socket, head) => {
+  if (authHttp && (!authHttp.allowedHost(request) || !authHttp.allowedOrigin(request) ||
+      !authHttp.sessionFor(request))) {
+    socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+    return;
+  }
+  wss.handleUpgrade(request, socket, head, ws => wss.emit('connection', ws, request));
+});
+if (authHttp) {
+  setInterval(() => {
+    for (const client of wss.clients) {
+      if (client.authKey && !authHttp.sessionValid(client.authKey)) client.close(1008, 'Session expired');
+    }
+  }, 5000);
+}
 
 const joanPlayers = new Map();
 function connectJoan(socket) {
@@ -101,6 +146,7 @@ function broadcast(payload) {
 }
 const clamp = (value, max) => Math.max(0, Math.min(max, value));
 wss.on('connection', (socket, request) => {
+  if (authHttp) socket.authKey = authHttp.sessionFor(request)?.key;
   if (request.url === '/joan-ws') { connectJoan(socket); return; }
   if (request.url !== '/') { socket.close(1008, 'Unknown WebSocket path'); return; }
   if (players.size >= MAX_PLAYERS) {
@@ -136,4 +182,7 @@ setInterval(() => {
   }
   broadcast({ type: 'snapshot', players: [...players.values()].map(({id, x, y}) => ({id, x, y})) });
 }, 50);
-server.listen(PORT, HOST, () => console.log('Joan multiplayer prototype: http://' + HOST + ':' + PORT + '/joan/'));
+server.listen(PORT, HOST, () => {
+  console.log('Joan multiplayer prototype: http://' + HOST + ':' + PORT + '/joan/');
+  if (AUTH_ENABLED) console.log('Private account test: http://' + HOST + ':' + PORT + '/account/');
+});
