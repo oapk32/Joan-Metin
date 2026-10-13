@@ -6,6 +6,15 @@ export const ATTACK_RANGE = 82;
 export const ATTACK_COOLDOWN_MS = 550;
 const PLAYER_RESPAWN_MS = 4000;
 const MOB_RESPAWN_MS = 6000;
+const PERSONAL_LOOT_LIFETIME_MS = 30000;
+const PICKUP_RANGE = 65;
+const MAX_PERSONAL_DROPS = 20;
+const MAX_TEST_INVENTORY = 30;
+// Prototype-only drops. These are NOT the canonical v134 loot tables.
+const TEST_DROP_TABLE = Object.freeze({
+  'Vlk': { itemId: 'test-wolf-pelt', itemName: 'Zkušební vlčí kožešina', chance: 0.5 },
+  'Ork': { itemId: 'test-orc-token', itemName: 'Zkušební orčí trofej', chance: 0.6 }
+});
 const MOB_DEFINITIONS = [
   { id: 'wolf-1', kind: 'Vlk', x: 440, y: 160, hp: 70, speed: 62, attack: 7, xp: 14, yang: 8 },
   { id: 'wolf-2', kind: 'Vlk', x: 520, y: 390, hp: 70, speed: 62, attack: 7, xp: 14, yang: 8 },
@@ -14,8 +23,10 @@ const MOB_DEFINITIONS = [
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-export function createCombatWorld() {
+export function createCombatWorld({ random = Math.random } = {}) {
   const players = new Map(); // character ID => mutable player state
+  const dropsByPlayer = new Map(); // personal ground loot, never a shared pool
+  let nextDropId = 1;
   const mobs = new Map(MOB_DEFINITIONS.map(d => [d.id, {
     ...d, maxHp: d.hp, spawnX: d.x, spawnY: d.y,
     deadUntil: 0, lastAttack: 0, contributions: new Map()
@@ -31,14 +42,16 @@ export function createCombatWorld() {
       cls: ['warrior', 'ninja', 'sura', 'shaman'].includes(character.class) ? character.class : 'warrior',
       x: 115 + (players.size % 3) * 32, y: 270, hp: 100, maxHp: 100,
       inputX: 0, inputY: 0, lastAttack: -Infinity, deadUntil: 0,
-      xp: 0, yang: 0, kills: 0
+      xp: 0, yang: 0, kills: 0, testInventory: []
     };
     players.set(player.id, player);
+    dropsByPlayer.set(player.id, new Map());
     return player;
   }
 
   function leave(id) {
     players.delete(id);
+    dropsByPlayer.delete(id);
     for (const mob of mobs.values()) mob.contributions.delete(id);
   }
 
@@ -83,15 +96,51 @@ export function createCombatWorld() {
         beneficiary.yang += mob.yang;
         beneficiary.kills += 1;
         awarded.push(id);
+        // Independent roll PER eligible character. No shared winner or
+        // first-to-pick race. Only that owner sees/can pick up this item.
+        const dropRule = TEST_DROP_TABLE[mob.kind];
+        const ownerDrops = dropsByPlayer.get(id);
+        if (dropRule && ownerDrops && ownerDrops.size < MAX_PERSONAL_DROPS) {
+          const roll = random();
+          if (Number.isFinite(roll) && roll >= 0 && roll < dropRule.chance) {
+            const dropId = 'drop-' + nextDropId++;
+            ownerDrops.set(dropId, {
+              id: dropId, itemId: dropRule.itemId, itemName: dropRule.itemName,
+              x: mob.x, y: mob.y, expiresAt: nowMs + PERSONAL_LOOT_LIFETIME_MS
+            });
+          }
+        }
       }
       mob.contributions.clear();
     }
     return { ok: true, mobId, damage: dealt, defeated, awarded };
   }
 
+  function pickUp(playerId, dropId, nowMs) {
+    const player = players.get(playerId);
+    const owned = dropsByPlayer.get(playerId);
+    if (!player || !owned || typeof dropId !== 'string' ||
+        !/^drop-[1-9][0-9]*$/.test(dropId) || !Number.isFinite(nowMs)) {
+      return { ok: false, reason: 'invalid_drop' };
+    }
+    const item = owned.get(dropId);
+    if (!item || nowMs >= item.expiresAt) return { ok: false, reason: 'not_owned_or_expired' };
+    if (player.hp <= 0) return { ok: false, reason: 'dead' };
+    if (distance(player, item) > PICKUP_RANGE) return { ok: false, reason: 'out_of_range' };
+    if (player.testInventory.length >= MAX_TEST_INVENTORY) return { ok: false, reason: 'inventory_full' };
+    owned.delete(dropId);
+    player.testInventory.push({ itemId: item.itemId, itemName: item.itemName });
+    return { ok: true, itemId: item.itemId, itemName: item.itemName };
+  }
+
   function step(dtSeconds, nowMs) {
     if (!Number.isFinite(dtSeconds) || dtSeconds <= 0 || !Number.isFinite(nowMs)) return;
     const dt = Math.min(dtSeconds, 0.1);
+    for (const drops of dropsByPlayer.values()) {
+      for (const [id, item] of drops) {
+        if (nowMs >= item.expiresAt) drops.delete(id);
+      }
+    }
     for (const p of players.values()) {
       if (p.hp === 0) {
         if (nowMs >= p.deadUntil) {
@@ -145,10 +194,16 @@ export function createCombatWorld() {
     }
   }
 
-  function snapshot() {
+  function snapshot(viewerId = null) {
+    const viewer = players.get(viewerId);
+    const owned = dropsByPlayer.get(viewerId);
     return {
       type: 'combat-snapshot',
       width: ARENA.width, height: ARENA.height,
+      personalDrops: owned ? [...owned.values()].map(d => ({
+        id: d.id, itemId: d.itemId, itemName: d.itemName, x: d.x, y: d.y
+      })) : [],
+      testInventory: viewer ? viewer.testInventory.map(d => ({ ...d })) : [],
       players: [...players.values()].map(p => ({
         id: p.id, name: p.name, cls: p.cls, x: p.x, y: p.y,
         hp: p.hp, maxHp: p.maxHp, xp: p.xp, yang: p.yang, kills: p.kills
@@ -159,5 +214,5 @@ export function createCombatWorld() {
     };
   }
 
-  return { join, leave, setInput, attack, step, snapshot, playerCount: () => players.size };
+  return { join, leave, setInput, attack, pickUp, step, snapshot, playerCount: () => players.size };
 }
