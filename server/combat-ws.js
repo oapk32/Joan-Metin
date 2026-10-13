@@ -8,8 +8,7 @@ const MAX_MESSAGE_BYTES = 256;
 
 // Shared, single-instance test arena. Lifetime of rewards = Node.js process.
 // No character economics are modified in PostgreSQL in this prototype.
-export function startCombatArena({ loadCharacter, clock = () => Date.now() }) {
-  const world = createCombatWorld();
+export function startCombatArena({ loadCharacter, clock = () => Date.now(), world = createCombatWorld() }) {
   const clients = new Map(); // WebSocket => bound character ID
   let lastStep = clock();
 
