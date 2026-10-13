@@ -234,8 +234,8 @@ test('Dormant monsters wake on valid incoming damage without scanning every play
   player.x = 440; player.y = 160;
   const hit = world.attack('1', 'wolf-1', 1100);
   assert.equal(hit.ok, true);
-  world.step(0.05, 1150);
-  assert.equal(player.hp, 93, 'a player hit wakes the target immediately');
+  world.step(0.05, 1350); // monster may only strike after its normal 1250ms attack interval
+  assert.equal(player.hp, 93, 'a player hit wakes the target without waiting for the next full scan');
 });
 
 test('Shared monsters can remain idle while there are no players', () => {
