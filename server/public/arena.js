@@ -83,6 +83,7 @@
     }
   }
   document.getElementById('attack').addEventListener('click', attackNearest);
+  document.getElementById('pickup').addEventListener('click', pickUpNearest);
 
   function sendAttack(id) {
     if (socket.readyState === WebSocket.OPEN && myId && id) {
