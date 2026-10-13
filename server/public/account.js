@@ -32,7 +32,11 @@
       for (const character of response.characters) {
         const item = document.createElement('li');
         item.textContent = character.name + ' · ' + character.class +
-          ' · Lv. ' + character.level + ' · uložená revize ' + character.revision;
+          ' · Lv. ' + character.level + ' · uložená revize ' + character.revision + ' · ';
+        const link = document.createElement('a');
+        link.href = '/arena/?character=' + encodeURIComponent(character.id);
+        link.textContent = 'Vyzkoušet společný boj';
+        item.append(link);
         list.append(item);
       }
       $('characterStatus').textContent = response.characters.length
