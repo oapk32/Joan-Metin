@@ -6,10 +6,8 @@ export const ATTACK_RANGE = 82;
 export const ATTACK_COOLDOWN_MS = 550;
 const PLAYER_RESPAWN_MS = 4000;
 const MOB_RESPAWN_MS = 6000;
-const PERSONAL_LOOT_LIFETIME_MS = 30000;
+export const PERSONAL_LOOT_LIFETIME_MS = 120000;
 const PICKUP_RANGE = 65;
-const MAX_PERSONAL_DROPS = 20;
-const MAX_TEST_INVENTORY = 30;
 // Prototype-only drops. These are NOT the canonical v134 loot tables.
 const TEST_DROP_TABLE = Object.freeze({
   'Vlk': { itemId: 'test-wolf-pelt', itemName: 'Zkušební vlčí kožešina', chance: 0.5 },
@@ -100,7 +98,7 @@ export function createCombatWorld({ random = Math.random } = {}) {
         // first-to-pick race. Only that owner sees/can pick up this item.
         const dropRule = TEST_DROP_TABLE[mob.kind];
         const ownerDrops = dropsByPlayer.get(id);
-        if (dropRule && ownerDrops && ownerDrops.size < MAX_PERSONAL_DROPS) {
+        if (dropRule && ownerDrops) {
           const roll = random();
           if (Number.isFinite(roll) && roll >= 0 && roll < dropRule.chance) {
             const dropId = 'drop-' + nextDropId++;
@@ -127,7 +125,6 @@ export function createCombatWorld({ random = Math.random } = {}) {
     if (!item || nowMs >= item.expiresAt) return { ok: false, reason: 'not_owned_or_expired' };
     if (player.hp <= 0) return { ok: false, reason: 'dead' };
     if (distance(player, item) > PICKUP_RANGE) return { ok: false, reason: 'out_of_range' };
-    if (player.testInventory.length >= MAX_TEST_INVENTORY) return { ok: false, reason: 'inventory_full' };
     owned.delete(dropId);
     player.testInventory.push({ itemId: item.itemId, itemName: item.itemName });
     return { ok: true, itemId: item.itemId, itemName: item.itemName };
