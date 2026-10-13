@@ -14,7 +14,7 @@
     location.host + '/combat-ws?character=' + encodeURIComponent(character));
   const keys = new Set();
   let myId = null;
-  let snapshot = { players: [], mobs: [] };
+  let snapshot = { players: [], mobs: [], personalDrops: [], testInventory: [] };
   const keySet = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright']);
 
   socket.addEventListener('open', () => { status.textContent = 'Ověřuji postavu…'; });
@@ -34,7 +34,8 @@
       if (me) {
         stats.textContent = me.name + ' · HP ' + me.hp + '/' + me.maxHp +
           ' · test EXP ' + me.xp + ' · test Yang ' + me.yang +
-          ' · zabití ' + me.kills + ' · hráčů: ' + snapshot.players.length;
+          ' · zabití ' + me.kills + ' · test batoh: ' +
+          (snapshot.testInventory?.length || 0) + ' · hráčů: ' + snapshot.players.length;
       }
     } else if (value.type === 'combat-hit') {
       const reason = { out_of_range: 'Monstrum je příliš daleko.',
@@ -44,6 +45,16 @@
       message.textContent = value.ok
         ? 'Zásah za ' + value.damage + ' HP' + (value.defeated ? ' · Monstrum poraženo!' : '')
         : (reason[value.reason] || 'Útok nebyl přijat.');
+    } else if (value.type === 'combat-pickup-result') {
+      const reason = {
+        out_of_range: 'Kořist je příliš daleko.',
+        not_owned_or_expired: 'Tato kořist ti nepatří, nebo už zmizela.',
+        dead: 'Mrtvá postava nesbírá kořist.',
+        inventory_full: 'Testovací batoh je plný.'
+      };
+      message.textContent = value.ok
+        ? 'Sebráno: ' + value.itemName + ' (jen test, neukládá se)'
+        : (reason[value.reason] || 'Kořist nelze sebrat.');
     }
   });
 
@@ -53,6 +64,9 @@
     const key = e.key.toLowerCase();
     if (key === ' ' && e.target.tagName !== 'INPUT') {
       e.preventDefault(); attackNearest(); return;
+    }
+    if (key === 'e') {
+      e.preventDefault(); pickUpNearest(); return;
     }
     if (keySet.has(key)) { e.preventDefault(); keys.add(normalKey(key)); }
   });
@@ -75,6 +89,15 @@
       socket.send(JSON.stringify({ type: 'combat-attack', mobId: id }));
     }
   }
+  function pickUpNearest() {
+    const me = snapshot.players.find(p => p.id === myId);
+    if (!me) return;
+    const drops = [...(snapshot.personalDrops || [])];
+    drops.sort((a,b) => Math.hypot(me.x-a.x,me.y-a.y) - Math.hypot(me.x-b.x,me.y-b.y));
+    if (drops[0] && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'combat-pickup', dropId: drops[0].id }));
+    }
+  }
   function attackNearest() {
     const me = snapshot.players.find(p => p.id === myId);
     if (!me) return;
@@ -86,6 +109,11 @@
     const bounds = canvas.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width * canvas.width;
     const y = (event.clientY - bounds.top) / bounds.height * canvas.height;
+    const drop = (snapshot.personalDrops || []).find(d => Math.hypot(d.x-x,d.y-y) <= 28);
+    if (drop && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'combat-pickup', dropId: drop.id }));
+      return;
+    }
     const target = snapshot.mobs.find(m => m.hp > 0 && Math.hypot(m.x-x,m.y-y) <= 30);
     if (target) sendAttack(target.id);
   });
@@ -115,6 +143,15 @@
       ctx.fillStyle = '#f8e8c8';ctx.fillText(mob.kind,mob.x,mob.y-31);
       healthBar(mob.x,mob.y-27,42,mob.hp,mob.maxHp);
     }
+    // Drops are already filtered for this player's account by the server.
+    for (const drop of (snapshot.personalDrops || [])) {
+      ctx.fillStyle = '#f6e29d';
+      ctx.beginPath(); ctx.moveTo(drop.x,drop.y-9); ctx.lineTo(drop.x+9,drop.y);
+      ctx.lineTo(drop.x,drop.y+9); ctx.lineTo(drop.x-9,drop.y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff0b4'; ctx.font = '11px system-ui';
+      ctx.fillText(drop.itemName,drop.x,drop.y-20);
+    }
+    ctx.font = 'bold 13px system-ui';
     for (const p of snapshot.players) {
       ctx.fillStyle = p.hp <= 0 ? '#5a6b67' : p.id === myId ? '#f1c96f' : '#66b2e2';
       ctx.beginPath();ctx.arc(p.x,p.y,14,0,Math.PI*2);ctx.fill();
