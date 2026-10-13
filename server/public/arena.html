@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Joan Online – společná bojová aréna (test)</title>
+  <link rel="stylesheet" href="/arena/style.css">
+  <script src="/arena/app.js" defer></script>
+</head>
+<body>
+<main>
+  <header>
+    <div><p class="eyebrow">JOAN METINY ONLINE · TEST PvE</p><h1>Společná bojová aréna</h1></div>
+    <a href="/account/">← Moje postavy</a>
+  </header>
+  <section class="notice">Samostatný multiplayerový test, nikoliv svět v134. Všichni připojení hráči vidí tatáž monstra. Testovací EXP, Yangy a zabití <strong>se neukládají do databáze</strong>.</section>
+  <div class="status" id="status" role="status">Připojování…</div>
+  <section class="board">
+    <canvas id="arena" width="900" height="550" aria-label="Společná bojová aréna s monstry a hráči"></canvas>
+  </section>
+  <section class="info">
+    <p><strong>Ovládání:</strong> WASD/šipky pro pohyb, <kbd>Mezerník</kbd> k útoku na nejbližší monstrum, nebo klikni na monstrum. Server ověřuje vzdálenost a prodlevu útoku.</p>
+    <p id="stats">Zatím nepřipojeno</p>
+    <p id="combatMessage" aria-live="polite"></p>
+  </section>
+  <div class="mobile-controls" aria-label="Dotykové ovládání">
+    <div class="dpad">
+      <button type="button" data-key="w" class="up" aria-label="Nahoru">▲</button>
+      <button type="button" data-key="a" class="left" aria-label="Doleva">◀</button>
+      <button type="button" data-key="s" class="down" aria-label="Dolů">▼</button>
+      <button type="button" data-key="d" class="right" aria-label="Doprava">▶</button>
+    </div>
+    <button type="button" id="attack" class="attack">Útok</button>
+  </div>
+</main>
+</body>
+</html>
