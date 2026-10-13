@@ -1,12 +1,12 @@
 {
   "name": "joan-multiplayer-prototype",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
-  "description": "Joan private beta: authenticated online characters and PostgreSQL migrations",
+  "description": "Joan multiplayer private beta: server-authoritative shared PvE arena",
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js && node --check db.js && node --check db-check.js && node --check auth.js && node --check auth-http.js && node --check public/account.js && node --check ../client/js/mp-bridge.js && node --check ../client/js/game.js && node --check characters.js && node --check characters-http.js && node --check migrations/migrate.js",
+    "check": "node --check index.js && node --check db.js && node --check db-check.js && node --check auth.js && node --check auth-http.js && node --check public/account.js && node --check ../client/js/mp-bridge.js && node --check ../client/js/game.js && node --check characters.js && node --check characters-http.js && node --check migrations/migrate.js && node --check combat-world.js && node --check combat-ws.js && node --check public/arena.js",
     "test": "node --test tests/*.test.js",
     "db:check": "node db-check.js",
     "db:migrations": "node migrations/migrate.js"
