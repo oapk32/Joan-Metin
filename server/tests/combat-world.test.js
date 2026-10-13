@@ -197,17 +197,17 @@ test('No arbitrary cap on ground drops or test inventory', () => {
 });
 
 test('Idle monsters scan less frequently, then wake when a player approaches', () => {
-  assert.equal(ACTIVE_TARGET_SCAN_MS, 250);
-  assert.equal(IDLE_TARGET_SCAN_MS, 800);
+  assert.equal(ACTIVE_TARGET_SCAN_MS, 1000);
+  assert.equal(IDLE_TARGET_SCAN_MS, 1000);
   const world = createCombatWorld();
   const player = world.join(hero('1', 'Alice'));
   world.step(0.05, 1000); // player starts far away from wolf-1
   const wolf = world.snapshot().mobs.find(m => m.id === 'wolf-1');
   assert.equal(wolf.hp, 70);
   player.x = wolf.x; player.y = wolf.y;
-  world.step(0.05, 1750); // no full player search until idle scan is due
+  world.step(0.05, 1999); // an idle monster remains sleeping between scans
   assert.equal(player.hp, 100);
-  world.step(0.05, 1800);
+  world.step(0.05, 2000); // wakes on the next one-second scan
   assert.equal(player.hp, 93);
 });
 
@@ -225,4 +225,25 @@ test('Public world snapshots omit private loot, while the owner sees item change
   assert.equal(Object.hasOwn(world.snapshotWorld(), 'testInventory'), false);
   assert.equal(world.personalLootState('1').personalDrops.length, 1);
   assert.equal(world.personalLootState('not-an-owner').personalDrops.length, 0);
+});
+
+test('Dormant monsters wake on valid incoming damage without scanning every player', () => {
+  const world = createCombatWorld();
+  const player = world.join(hero('1', 'Alice'));
+  world.step(0.05, 1000);
+  player.x = 440; player.y = 160;
+  const hit = world.attack('1', 'wolf-1', 1100);
+  assert.equal(hit.ok, true);
+  world.step(0.05, 1150);
+  assert.equal(player.hp, 93, 'a player hit wakes the target immediately');
+});
+
+test('Shared monsters can remain idle while there are no players', () => {
+  const world = createCombatWorld();
+  world.step(0.05, 1000);
+  assert.equal(world.snapshotWorld().mobs.length, 3);
+  const player = world.join(hero('1', 'Alice'));
+  player.x = 440; player.y = 160;
+  world.step(0.05, 2000);
+  assert.equal(player.hp, 93);
 });
