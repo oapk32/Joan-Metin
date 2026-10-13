@@ -1,5 +1,6 @@
 import { validId } from './characters.js';
 import { createCombatWorld } from './combat-world.js';
+import { createSectorIndex, diffVisible, fullVisible } from './combat-interest.js';
 import { WebSocket } from 'ws';
 
 const TICK_MS = 50;
@@ -11,6 +12,7 @@ const MAX_MESSAGE_BYTES = 256;
 export function startCombatArena({ loadCharacter, clock = () => Date.now(), world = createCombatWorld() }) {
   const clients = new Map(); // WebSocket => bound character ID
   const sentLootRevisions = new Map(); // send personal items only when they change
+  const previouslyVisible = new Map(); // WebSocket -> player's last AOI-visible entities
   let lastStep = clock();
 
   const tick = setInterval(() => {
@@ -25,15 +27,34 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
       sentLootRevisions.set(socket, revision);
     }
   }
-  const broadcast = setInterval(() => {
-    if (!clients.size) return;
-    // Encode the public world once; drop/inventory lists are not resent at 8 Hz.
-    const publicState = JSON.stringify(world.snapshotWorld());
+  function sendFullVisible(socket, playerId, publicWorld, index) {
+    const visible = index.select(playerId);
+    socket.send(JSON.stringify(fullVisible(publicWorld, visible)));
+    previouslyVisible.set(socket, visible);
+    sendLootIfChanged(socket, playerId);
+  }
+  // Adding a player is a rare event; send a complete local-sector snapshot
+  // rather than forcing everyone to wait for the next delta.
+  function sendJoinSnapshots() {
+    const publicWorld = world.snapshotWorld();
+    const index = createSectorIndex(publicWorld);
     for (const [socket, playerId] of clients) {
       if (socket.readyState === WebSocket.OPEN) {
-        socket.send(publicState);
-        sendLootIfChanged(socket, playerId);
+        sendFullVisible(socket, playerId, publicWorld, index);
       }
+    }
+  }
+  const broadcast = setInterval(() => {
+    if (!clients.size) return;
+    const publicWorld = world.snapshotWorld();
+    const index = createSectorIndex(publicWorld); // build ONCE for all viewers
+    for (const [socket, playerId] of clients) {
+      if (socket.readyState !== WebSocket.OPEN) continue;
+      const visible = index.select(playerId);
+      const delta = diffVisible(previouslyVisible.get(socket), visible);
+      if (delta) socket.send(JSON.stringify(delta));
+      previouslyVisible.set(socket, visible);
+      sendLootIfChanged(socket, playerId);
     }
   }, BROADCAST_MS);
 
@@ -80,8 +101,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
       type: 'combat-welcome', id: player.id,
       note: 'Arena demo only. Rewards do not persist.'
     }));
-    socket.send(JSON.stringify(world.snapshotWorld()));
-    sendLootIfChanged(socket, player.id);
+    sendJoinSnapshots();
 
     let lastInput = 0;
     socket.on('message', bytes => {
@@ -112,6 +132,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
       if (clients.get(socket) === character.id) {
         clients.delete(socket);
         sentLootRevisions.delete(socket);
+        previouslyVisible.delete(socket);
         world.leave(character.id);
       }
     });
@@ -123,6 +144,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
     for (const socket of clients.keys()) socket.close(1001, 'Server stopping');
     clients.clear();
     sentLootRevisions.clear();
+    previouslyVisible.clear();
   }
   return { connect, stop, world };
 }
