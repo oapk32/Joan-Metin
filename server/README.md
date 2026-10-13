@@ -1,40 +1,41 @@
-# Joan Metiny — první online hráči ve světě v134
+# Joan Metiny Online v0.3 — společné postavy v originálním klientu
 
-**Stav:** lokální prototyp. Mapa, lokální souboje a uložené postavy běží původním klientem v134. Online se pouze synchronizuje **pozice a jméno ostatních hráčů ve stejné oblasti**. Jejich podoba je zatím jednoduchý modrý symbol. Nejde zatím o bezpečný produkční multiplayer.
+Jedná se o **lokální multiplayerový prototyp**, ne hotový veřejný online server.
 
-## Aktualizace na Windows
-Zastav server pomocí **Ctrl+C** a spusť:
+## První spuštění na Windows
+1. Ve složce `Joan-Metin-MP` otevři dvojklikem `SPUSTIT_JOAN.cmd`.
+2. Mělo by se otevřít samostatné černé okno serveru a prohlížeč na <http://127.0.0.1:3000/joan/>.
+3. V normálním a anonymním okně Chrome vytvoř dvě různé postavy a vyzkoušej pohyb.
+4. Vypnutí: v černém okně serveru stiskni **Ctrl+C**.
 
+## Aktualizace z GitHubu
+Před aktualizací server vypni (**Ctrl+C**), poté v hlavní složce dvojklik na `AKTUALIZOVAT_JOAN.cmd`. Po dokončení opět `SPUSTIT_JOAN.cmd`.
+
+Ruční postup (ze složky projektu):
 ```powershell
-cd "$HOME\Downloads\Joan-Metin-MP"
-git pull origin multiplayer-dev
+git pull --ff-only origin multiplayer-dev
 cd server
 npm.cmd install
+npm.cmd run check
+npm.cmd test
 npm.cmd start
 ```
 
-Pak otevři:
+## Kamarádi přes internet
+Viz [připojení přes soukromou síť Tailscale](../docs/PRIPOJENI_KAMARADU.md). Přístup přes internet povolujeme **pouze důvěryhodným testerům**. Neotvírej port 3000 veřejně.
 
-- **<http://127.0.0.1:3000/joan/>** — původní Joan v134 s online ukazateli ostatních hráčů
-- **<http://127.0.0.1:3000/>** — původní testovací plocha se dvěma kruhy
+## Co už jde
+- Načíst celou původní hru Joan v134 přes `/joan/`
+- Rozpoznat více hráčů ve stejné herní oblasti
+- Synchronizovat pozice, jména, povolání a směr pohledu
+- Vykreslit ostatní hráče pomocí v134 modelů povolání namísto modrých značek
+- Vyhladit síťový pohyb a animovat chůzi
+- Základní dvouokenní test, kontrola parity s původní v134
 
-Otestuj Joan v **jednom normálním a jednom anonymním okně** prohlížeče, vytvoř postavu v obou, aby jejich ukládání bylo oddělené, a nech obě ve stejné oblasti. Pohni s první postavou: ve druhém okně by se měl pohybovat modrý symbol se jménem postavy.
+## Co zatím nejde
+- Společné HP, monstra, metiny, bossové, souboje, EXP, inventář a loot
+- Serverem ověřovaný pohyb v původní herní mapě
+- Online účty, bezpečné přihlašování a PostgreSQL persistence
+- Veřejný hosting pro 10–30 skutečných hráčů
 
-Server naslouchá pouze na `127.0.0.1`; ostatní zařízení se zatím nepřipojí. **Neotevírej port 3000 do internetu.** Prototyp nemá přihlášení ani autorizaci a přijímá pozice od klienta.
-
-## Co funguje
-- WebSocket připojení a přidělení síťového ID
-- Původní testovací plocha: autoritativní pohyb a 20 Hz aktualizace
-- Klient v134: vlastní lokální pohyb a vykreslování, online přenos pozic do stejné oblasti ~8–10×/s
-- Jednoduché symboly ostatních hráčů, jejich jména a počet připojených postav v oblasti
-- Při běžném samostatném spuštění klienta se bridge sám neaktivuje
-
-## Co zatím nefunguje
-- Sdílené příšery, NPC stav, boj, HP, EXP, loot, inventář ani bossové
-- Serverově autoritativní pohyb v původním klientovi
-- Databáze PostgreSQL a skutečné online účty
-- Instance dungeonů a rozdílné realm stavy, bezpečné ukládání, TLS a veřejný hosting
-- Testy desítek současných hráčů
-
-## Kontrola syntaxe/parity
-V kořeni projektu spusť `python scripts/verify.py`. Ověří identitu v134 mimo dva malé online hooky a syntaxi JavaScriptu. Nezastupuje to reálný herní test.
+Server umí sledovat sdílené pozice, ale zbytek stavu hry dál simuluje každý prohlížeč sám. Servery ani klienti **nejsou bezpeční pro otevřený internet** a synchronizaci lze podvrhnout. Sdílené ekonomické odměny proto nejsou zapnuté.
