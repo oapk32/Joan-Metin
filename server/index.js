@@ -9,6 +9,7 @@ import { createAuthHttp } from './auth-http.js';
 import { listCharacters, getCharacter, createCharacter } from './characters.js';
 import { createCharactersHttp } from './characters-http.js';
 import { startCombatArena } from './combat-ws.js';
+import { createAudioAssets } from './audio-assets.js';
 
 const HOST = process.env.JOAN_BIND_HOST || '127.0.0.1'; // bind to Tailscale IP only when explicitly requested
 const PORT = Number(process.env.PORT || 3000);
@@ -34,6 +35,7 @@ const combatArena = authHttp ? startCombatArena({
   loadCharacter: (accountId, characterId) => getCharacter(pool, accountId, characterId)
 }) : null;
 const ROOT = dirname(fileURLToPath(import.meta.url));
+const audioAssets = createAudioAssets();
 const WIDTH = 900;
 const HEIGHT = 550;
 const SPEED = 225; // authoritative units per second
@@ -47,7 +49,6 @@ const ASSETS = new Map([
   ['/joan/', [join(ROOT, '..', 'client', 'index.html'), 'text/html; charset=utf-8']],
   ['/joan/index.html', [join(ROOT, '..', 'client', 'index.html'), 'text/html; charset=utf-8']],
   ['/joan/css/game.css', [join(ROOT, '..', 'client', 'css', 'game.css'), 'text/css; charset=utf-8']],
-  ['/joan/js/audio-data.js', [join(ROOT, '..', 'client', 'js', 'audio-data.js'), 'text/javascript; charset=utf-8']],
   ['/joan/js/game.js', [join(ROOT, '..', 'client', 'js', 'game.js'), 'text/javascript; charset=utf-8']],
   ['/joan/js/mp-bridge.js', [join(ROOT, '..', 'client', 'js', 'mp-bridge.js'), 'text/javascript; charset=utf-8']],
   ['/account/', [join(ROOT, 'public', 'account.html'), 'text/html; charset=utf-8']],
@@ -75,6 +76,7 @@ const server = http.createServer(async (req, res) => {
   } else if (pathname.startsWith('/account') || pathname.startsWith('/arena') || pathname.startsWith('/api/')) {
     res.writeHead(404).end('Not found'); return;
   }
+  if (audioAssets.serve(req, res, pathname)) return;
   if (req.method !== 'GET') { res.writeHead(405).end('Method not allowed'); return; }
   if (pathname === '/joan') { res.writeHead(308, { location: '/joan/' }).end(); return; }
   const resource = ASSETS.get(pathname);
