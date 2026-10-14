@@ -37,6 +37,10 @@
         link.href = '/arena/?character=' + encodeURIComponent(character.id);
         link.textContent = 'Vyzkoušet společný boj';
         item.append(link);
+        const edge = document.createElement('a');
+        edge.href = '/arena/?character=' + encodeURIComponent(character.id) + '&region=joan-1-2';
+        edge.textContent = 'Test mapy 1–2 (zatím bez grafiky v134)';
+        item.append(' · ', edge);
         list.append(item);
       }
       $('characterStatus').textContent = response.characters.length
