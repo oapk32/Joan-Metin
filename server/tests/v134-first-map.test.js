@@ -49,8 +49,8 @@ test('Joan first-map shared damage, anti-teleport, respawn and private ground lo
   assert.equal(world.attack('2', mob.id, 1001).reason, 'cooldown');
   assert.equal(world.attack('1', mob.id, 1550).ok, true);
   assert.equal(world.attack('2', mob.id, 1550).ok, true);
-  assert.equal(world.attack('1', mob.id, 2100).ok, true);
-  const kill = world.attack('2', mob.id, 2100);
+  const kill = world.attack('1', mob.id, 2100);
+  assert.equal(world.attack('2', mob.id, 2100).reason, 'mob_dead');
   assert.equal(kill.defeated, true);
   assert.deepEqual(kill.awarded.sort(), ['1','2']);
   assert.equal(byId(world, mob.id).hp, 0);
