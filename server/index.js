@@ -71,6 +71,7 @@ const ASSETS = new Map([
   ['/joan/css/game.css', [join(ROOT, '..', 'client', 'css', 'game.css'), 'text/css; charset=utf-8']],
   ['/joan/js/game.js', [join(ROOT, '..', 'client', 'js', 'game.js'), 'text/javascript; charset=utf-8']],
   ['/joan/js/mp-bridge.js', [join(ROOT, '..', 'client', 'js', 'mp-bridge.js'), 'text/javascript; charset=utf-8']],
+  ['/joan/js/v134-online.js', [join(ROOT, '..', 'client', 'js', 'v134-online.js'), 'text/javascript; charset=utf-8']],
   ['/account/', [join(ROOT, 'public', 'account.html'), 'text/html; charset=utf-8']],
   ['/account/style.css', [join(ROOT, 'public', 'account.css'), 'text/css; charset=utf-8']],
   ['/account/app.js', [join(ROOT, 'public', 'account.js'), 'text/javascript; charset=utf-8']],
