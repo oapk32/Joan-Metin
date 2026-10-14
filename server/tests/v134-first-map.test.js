@@ -10,9 +10,10 @@ import { startCombatArena } from '../combat-ws.js';
 const hero = (id, name) => ({ id, name, class: 'warrior' });
 const byId = (world, id) => world.snapshot().mobs.find(m => m.id === id);
 
-test('v134 Joan 1–2 defines five dogs and five wolves, one shared world', () => {
+test('v134 Joan 1–2 defines five dogs, five wolves and one shared Metin', () => {
   assert.equal(JOAN_EDGE.roomIndex, 1);
-  assert.equal(JOAN_EDGE_MOBS.length, 10);
+  assert.equal(JOAN_EDGE_MOBS.length, 11);
+  assert.equal(JOAN_EDGE_MOBS.filter(m => m.type === 'stone').length, 1);
   assert.equal(JOAN_EDGE_MOBS.filter(m => m.type === 'dog').length, 5);
   assert.equal(JOAN_EDGE_MOBS.filter(m => m.type === 'wolf').length, 5);
   assert.equal(new Set(JOAN_EDGE_MOBS.map(m => m.id)).size, 10);
@@ -25,9 +26,10 @@ test('v134 Joan 1–2 defines five dogs and five wolves, one shared world', () =
   assert.equal(a.y, 330);
   const state = world.snapshotWorld();
   assert.deepEqual([state.width, state.height], [1100,660]);
-  assert.equal(state.mobs.length, 10);
+  assert.equal(state.mobs.length, 11);
   assert.ok(state.mobs.every(m => m.mapId === JOAN_EDGE.mapId));
   assert.ok(state.mobs.some(m => m.type === 'wolf'));
+  assert.equal(state.mobs.find(m => m.type === 'stone')?.hp, 590);
   const visible = createSectorIndex(state).select(a.id);
   assert.ok(visible.mobs.length > 0 && visible.mobs.length < 10,
     'AOI does not broadcast the whole v134 region to each player');
@@ -71,6 +73,35 @@ test('Joan first-map shared damage, anti-teleport, respawn and private ground lo
   world.step(.05, 122151);
   assert.equal(alice.mapId, JOAN_EDGE.mapId);
   assert.ok(alice.x <= JOAN_EDGE.width && alice.y <= JOAN_EDGE.height);
+});
+
+
+test('Metin smutku has shared HP, cannot attack and respawns after 30 seconds', () => {
+  const world = createJoanEdgeWorld({ random: () => 1 });
+  const a = world.join(hero('1', 'A'));
+  const b = world.join(hero('2', 'B'));
+  const stone = byId(world, 'joan-metin-5');
+  assert.equal(stone.hp, 590);
+  a.x = stone.x; a.y = stone.y;
+  b.x = stone.x; b.y = stone.y;
+  const beforeHp = a.hp;
+  world.step(0.05, 1000);
+  assert.equal(a.hp, beforeHp, 'passive stone never strikes');
+  let last = 1000;
+  let defeated = false;
+  for (let i = 0; i < 35 && !defeated; i++) {
+    last = 2000 + i * 280; // each player has their own >= 550ms cooldown
+    const hit = world.attack(i % 2 ? '2' : '1', 'joan-metin-5', last);
+    assert.equal(hit.ok, true, 'server accepts in-range attack intents');
+    defeated = hit.defeated;
+  }
+  assert.equal(defeated, true);
+  assert.equal(byId(world, 'joan-metin-5').hp, 0);
+  assert.ok(a.xp > 0 && b.xp > 0, 'both recent contributors receive test rewards');
+  world.step(0.05, last + 29999);
+  assert.equal(byId(world, 'joan-metin-5').hp, 0, 'respawn not early');
+  world.step(0.05, last + 30000);
+  assert.equal(byId(world, 'joan-metin-5').hp, 590, 'server respawns once');
 });
 
 async function waitFor(fn, timeout = 4000) {

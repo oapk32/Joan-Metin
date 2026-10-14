@@ -6,7 +6,7 @@
   const enabled = query.get('online') === '1' && /^[1-9][0-9]{0,18}$/.test(characterId || '');
   if (!enabled) { window.JoanOnline = { enabled: false }; return; }
 
-  const mobTypes = new Set(['dog', 'wolf']);
+  const mobTypes = new Set(['dog', 'wolf', 'stone']);
   const keysHeld = new Set();
   const publicPlayers = new Map();
   const publicMobs = new Map();
@@ -165,13 +165,16 @@
     if (player.action && time >= player.action.end) player.action = null;
 
     const activeMobs = [];
+    const activeStones = [];
     for (const mob of publicMobs.values()) {
       if (!mobTypes.has(mob.type)) continue;
       let draw = mobDrawCache.get(mob.id);
       if (!draw) {
         let hash = 17;
         for (const ch of mob.id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-        draw = { id: hash || 1, serverId: mob.id, type: mob.type, r: mob.type === 'wolf' ? 19 : 15,
+        draw = { id: hash || 1, serverId: mob.id, type: mob.type,
+          stoneLvl: mob.type === 'stone' ? 5 : undefined,
+          r: mob.type === 'stone' ? 39 : mob.type === 'wolf' ? 19 : 15,
           dir: 0, stun: 0, poison: 0, attack: 1, flash: 0 };
         mobDrawCache.set(mob.id, draw);
       }
@@ -181,11 +184,12 @@
       if (draw.hp !== undefined && mob.hp < draw.hp) draw.flash = 0.16;
       else draw.flash = Math.max(0, draw.flash - 0.016);
       Object.assign(draw, { x: mob.x, y: mob.y, hp: mob.hp, maxHp: mob.maxHp, dead: mob.hp <= 0 });
-      activeMobs.push(draw);
+      if (mob.type === 'stone') activeStones.push(draw);
+      else activeMobs.push(draw);
     }
     for (const id of mobDrawCache.keys()) if (!publicMobs.has(id)) mobDrawCache.delete(id);
     world.mobs = activeMobs;
-    world.stones = []; // original metins are not server-authoritative yet
+    world.stones = activeStones; // Reuse original v134 stone art and HP bar.
     world.total = 10;
     world.kills = activeMobs.filter(m => m.dead).length;
     world.clear = false;

@@ -183,6 +183,7 @@ try {
     .filter(m => m.type === 'combat-snapshot' && m.mobs?.length).at(-1)?.mobs || []);
   assert.ok(firstMapMobs.some(m => m.type === 'dog'), 'original region has dogs');
   assert.ok(firstMapMobs.some(m => m.type === 'wolf'), 'original region has wolves');
+  assert.ok(firstMapMobs.some(m => m.type === 'stone'), 'original region has server-owned metin');
   assert.deepEqual(a.errors, [], 'no errors in first-map Chromium browser A');
   assert.deepEqual(b.errors, [], 'no errors in first-map Chromium browser B');
   // Original v134 renderer with new authoritative server-owned monsters.
@@ -212,6 +213,7 @@ try {
   assert.equal(nativeB.players.length, 2, 'both receive server-owned nearby characters');
   assert.ok(nativeA.mobs.some(m => m.type === 'dog'), 'server dogs in original v134 graphics');
   assert.ok(nativeA.mobs.some(m => m.type === 'wolf'), 'server wolves in original v134 graphics');
+  assert.ok(nativeA.mobs.some(m => m.type === 'stone'), 'v134 canvas renders a shared Metin smutku');
   assert.equal(await a.page.locator('canvas#game').count(), 1, 'original game canvas preserved');
   assert.equal(await a.page.locator('#creation').evaluate(el => el.classList.contains('hidden')),
     true, 'offline roster overlay never appears online');

@@ -22,7 +22,15 @@ export const JOAN_EDGE_MOBS = Object.freeze([
     id: 'joan-wolf-'+(i+1), kind:'Vlk', type:'wolf',
     mapId:JOAN_EDGE.mapId,x,y,
     hp:90, speed:125, attack:16, xp:36, yang:7
-  }))
+  })),
+  // One shared v134 Metin smutku. Static and non-attacking, with its own
+  // 30-second server-owned respawn. Drops remain test-only for now.
+  Object.freeze({
+    id:'joan-metin-5', kind:'Metin smutku', type:'stone',
+    mapId:JOAN_EDGE.mapId, x:390, y:560,
+    hp:590, speed:0, attack:0, xp:80, yang:30,
+    passive:true, respawnMs:30000
+  })
 ]);
 
 export function createJoanEdgeWorld(options = {}) {

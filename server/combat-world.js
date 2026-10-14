@@ -132,7 +132,10 @@ export function createCombatWorld({
     const awarded = [];
     if (mob.hp === 0) {
       defeated = true;
-      mob.deadUntil = nowMs + MOB_RESPAWN_MS;
+      // Only trusted server definitions may override the monster timer.
+      const respawnMs = Number.isFinite(mob.respawnMs) && mob.respawnMs >= MOB_RESPAWN_MS && mob.respawnMs <= 600000
+        ? mob.respawnMs : MOB_RESPAWN_MS;
+      mob.deadUntil = nowMs + respawnMs;
       // Rewards go to recent contributors only, not all nearby/online players.
       for (const [id, contribution] of mob.contributions) {
         const beneficiary = players.get(id);
@@ -227,6 +230,8 @@ export function createCombatWorld({
         }
         continue;
       }
+      // Stationary metins cannot chase, aggro or attack players.
+      if (mob.passive) continue;
       // Movement and attacks remain on the 20 Hz game tick.
       // Full nearest-player scans run once per second, even during combat.
       // A sleeping monster at its spawn skips the rest of this tick entirely.
