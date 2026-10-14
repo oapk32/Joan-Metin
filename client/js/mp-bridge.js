@@ -1,7 +1,7 @@
 /* Joan v134: optional LAN multiplayer presence. Gameplay state is local, not authoritative. */
 (() => {
   'use strict';
-  if (!/^\/joan(?:\/|$)/.test(location.pathname)) return;
+  if (!/^\/joan(?:\/|$)/.test(location.pathname) || new URLSearchParams(location.search).get('online') === '1') return;
 
   const indicator = document.createElement('div');
   indicator.setAttribute('role', 'status');
