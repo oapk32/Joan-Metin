@@ -41,6 +41,10 @@
         edge.href = '/arena/?character=' + encodeURIComponent(character.id) + '&region=joan-1-2';
         edge.textContent = 'Test mapy 1–2 (zatím bez grafiky v134)';
         item.append(' · ', edge);
+        const online = document.createElement('a');
+        online.href = '/joan/?online=1&character=' + encodeURIComponent(character.id);
+        online.textContent = 'Online v původní grafice 1–2 (test)';
+        item.append(' · ', online);
         list.append(item);
       }
       $('characterStatus').textContent = response.characters.length
