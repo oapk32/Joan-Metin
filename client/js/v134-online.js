@@ -159,6 +159,18 @@
 
     player.x = self.x; player.y = self.y; player.hp = self.hp;
     player.name = self.name; player.gold = self.yang; player.xp = self.xp;
+    // v134's isDead() checks deathState, not HP. Derive a display-only
+    // death marker from the SERVER snapshot so defeated heroes disappear
+    // until their server-owned respawn; do not apply local EXP/Yang penalties.
+    if (self.hp <= 0 && !player.deathState) {
+      player.deathState = { reviveAt: Date.now() + 4000, town: 0,
+        lossPercent: 0, lostXp: 0, lostYang: 0 };
+      player.action = null;
+      status('Postava padla · čekej na serverové oživení.');
+    } else if (self.hp > 0 && player.deathState) {
+      player.deathState = null;
+      status('Postava oživena · online 1–2 Okraj Joanu.');
+    }
     if ((dx || dy) && (!player.action || time >= player.action.end)) {
       player.dir = Math.atan2(dy, dx);
     }
