@@ -33,8 +33,9 @@ for hook in hooks:
 
 assert game == scripts[1], "Game logic differs from original v134 beyond the known online hooks"
 assert '<link rel="stylesheet" href="css/game.css">' in html
-for filename in ("audio-data.js", "mp-bridge.js", "game.js"):
+for filename in ("audio-data.js", "mp-bridge.js", "v134-online.js", "game.js"):
     assert f'<script src="js/{filename}"></script>' in html
+assert '<script src="js/v134-online.js"></script>' in html
 assert "<style>" not in html
 
 for filename in ("audio-data.js", "mp-bridge.js", "game.js"):
