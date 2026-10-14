@@ -296,7 +296,7 @@ export function createCombatWorld({
         hp: p.hp, maxHp: p.maxHp, xp: p.xp, yang: p.yang, kills: p.kills
       })),
       mobs: [...mobs.values()].map(m => ({
-        id: m.id, kind: m.kind, mapId: m.mapId, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp
+        id: m.id, kind: m.kind, type: m.type || null, mapId: m.mapId, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp
       }))
     };
   }
