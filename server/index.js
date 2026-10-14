@@ -11,6 +11,7 @@ import { createCharactersHttp } from './characters-http.js';
 import { startCombatArena } from './combat-ws.js';
 import { createJoanEdgeWorld } from './v134-first-map.js';
 import { createAudioAssets } from './audio-assets.js';
+import { patchV134OnlineGame, onlineV134Html } from './v134-online-patch.js';
 
 const HOST = process.env.JOAN_BIND_HOST || '127.0.0.1'; // bind to Tailscale IP only when explicitly requested
 const PORT = Number(process.env.PORT || 3000);
@@ -70,6 +71,7 @@ const ASSETS = new Map([
   ['/joan/index.html', [join(ROOT, '..', 'client', 'index.html'), 'text/html; charset=utf-8']],
   ['/joan/css/game.css', [join(ROOT, '..', 'client', 'css', 'game.css'), 'text/css; charset=utf-8']],
   ['/joan/js/game.js', [join(ROOT, '..', 'client', 'js', 'game.js'), 'text/javascript; charset=utf-8']],
+  ['/joan/js/game-online.js', [join(ROOT, '..', 'client', 'js', 'game.js'), 'text/javascript; charset=utf-8']],
   ['/joan/js/mp-bridge.js', [join(ROOT, '..', 'client', 'js', 'mp-bridge.js'), 'text/javascript; charset=utf-8']],
   ['/joan/js/v134-online.js', [join(ROOT, '..', 'client', 'js', 'v134-online.js'), 'text/javascript; charset=utf-8']],
   ['/account/', [join(ROOT, 'public', 'account.html'), 'text/html; charset=utf-8']],
@@ -101,7 +103,9 @@ const server = http.createServer(async (req, res) => {
   if (req.method !== 'GET') { res.writeHead(405).end('Method not allowed'); return; }
   if (pathname === '/joan') { res.writeHead(308, { location: '/joan/' }).end(); return; }
   const resource = ASSETS.get(pathname);
-  if (!resource) { res.writeHead(404).end('Not found'); return; }
+  if (!resource || (pathname === '/joan/js/game-online.js' && !authHttp)) {
+    res.writeHead(404).end('Not found'); return;
+  }
   try {
     // JavaScript bundles (including the multi-MB audio-data.js) and styles
     // can be kept in the browser's private cache. Every reuse is revalidated,
@@ -124,6 +128,17 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(304, headers).end();
         return;
       }
+    }
+    const onlineHtml = authHttp && (pathname === '/joan/' || pathname === '/joan/index.html') &&
+      new URL(req.url, 'http://localhost').searchParams.get('online') === '1';
+    if (pathname === '/joan/js/game-online.js' || onlineHtml) {
+      const source = await readFile(resource[0], 'utf8');
+      const rendered = pathname === '/joan/js/game-online.js'
+        ? patchV134OnlineGame(source) : onlineV134Html(source);
+      headers['cache-control'] = 'no-store';
+      res.writeHead(200, headers);
+      res.end(rendered);
+      return;
     }
     const bytes = await readFile(resource[0]);
     res.writeHead(200, headers);
