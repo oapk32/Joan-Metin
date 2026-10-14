@@ -31,19 +31,22 @@
   // Capture normal game input before the legacy handler. It must never
   // execute local damage, skill payouts, teleports, inventory or saves online.
   window.addEventListener('keydown', e => {
+    // All native gameplay shortcuts are local (skills, potions, mount, dash,
+    // menus). In online mode only server-sent WASD, attack and pickup are
+    // allowed. Stop the old key handler even for keys we do not use online.
     const k = normalizeKey(e);
-    if (!k) return;
-    e.preventDefault();
     e.stopImmediatePropagation();
+    if (!k) return; // Preserve browser shortcuts / normal typing.
+    e.preventDefault();
     keysHeld.add(k);
     if (k === 'attack' && !e.repeat) attackIntent();
     if (k === 'pickup' && !e.repeat) pickUp();
   }, true);
   window.addEventListener('keyup', e => {
     const k = normalizeKey(e);
+    e.stopImmediatePropagation();
     if (!k) return;
     e.preventDefault();
-    e.stopImmediatePropagation();
     keysHeld.delete(k);
   }, true);
   window.addEventListener('blur', () => { keysHeld.clear(); sendInput(0, 0); });
