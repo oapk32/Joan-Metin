@@ -125,7 +125,7 @@ test('v134 first-map WebSocket requires owned character, uses shared HP and reje
   assert.ok(selfA);
   world.transferPlayerMap('1', JOAN_EDGE.mapId, wolf.x, wolf.y);
   await waitFor(() => receivedA.some(m => m.type === 'combat-delta' &&
-    [...m.mobsAdded,...m.mobsChanged].some(x => x.id === wolf.id)));
+    m.playersChanged.some(p => p.id === '1' && p.x === wolf.x && p.y === wolf.y)));
   const before = byId(world, wolf.id).hp;
   assert.equal(world.attack('1',wolf.id,Date.now()).ok,true);
   await waitFor(() => receivedB.some(m => m.type === 'combat-delta' &&
