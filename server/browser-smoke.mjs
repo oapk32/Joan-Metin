@@ -82,7 +82,7 @@ async function createBrowserPlayer(index) {
     window.WebSocket = class extends Original {
       constructor(...args) {
         super(...args);
-        if (String(args[0]).includes('/combat-ws')) {
+        if (String(args[0]).includes('/combat-ws') || String(args[0]).includes('/v134-ws')) {
           this.addEventListener('message', evt => {
             try {
               window.__combatFrames.push(JSON.parse(evt.data));
@@ -150,7 +150,42 @@ try {
 
   assert.deepEqual(a.errors, [], 'first arena browser has no uncaught errors');
   assert.deepEqual(b.errors, [], 'second arena browser has no uncaught errors');
-  console.log('BROWSER PASS: registration, v134 page, on-demand music, 2 players, keyboard PvE, shared HP, sectors and account UI');
+
+  // Two real Chromium contexts enter one server-owned v134 region.
+  await Promise.all([
+    a.page.goto(base + '/account/', { waitUntil:'domcontentloaded' }),
+    b.page.goto(base + '/account/', { waitUntil:'domcontentloaded' })
+  ]);
+  await until(async () => (await a.page.getByRole('link', {
+    name:'Test mapy 1–2 (zatím bez grafiky v134)'
+  }).count()) > 0, 'Joan first-map entry link');
+  const edgeA = await a.page.getByRole('link', {
+    name:'Test mapy 1–2 (zatím bez grafiky v134)'
+  }).first().getAttribute('href');
+  const edgeB = await b.page.getByRole('link', {
+    name:'Test mapy 1–2 (zatím bez grafiky v134)'
+  }).first().getAttribute('href');
+  assert.match(edgeA, /^\/arena\/\?character=[1-9]\d*&region=joan-1-2$/);
+  await delay(200); // previous arena socket closes and releases its character
+  await Promise.all([
+    a.page.goto(base + edgeA, { waitUntil:'domcontentloaded' }),
+    b.page.goto(base + edgeB, { waitUntil:'domcontentloaded' })
+  ]);
+  await until(async () => (await a.page.locator('#status').textContent() || '')
+    .includes('Okraje Joanu 1–2'), 'first map WebSocket browser A');
+  await until(async () => (await b.page.locator('#status').textContent() || '')
+    .includes('Okraje Joanu 1–2'), 'first map WebSocket browser B');
+  await until(async () => (await a.page.locator('#stats').textContent() || '')
+    .includes('hráčů v okolí: 2'), 'two players sharing first original Joan region');
+  assert.deepEqual(await a.page.locator('#arena').evaluate(c => [c.width,c.height]),
+    [1100,660]);
+  const firstMapMobs = await a.page.evaluate(() => window.__combatFrames
+    .filter(m => m.type === 'combat-snapshot' && m.mobs?.length).at(-1)?.mobs || []);
+  assert.ok(firstMapMobs.some(m => m.type === 'dog'), 'original region has dogs');
+  assert.ok(firstMapMobs.some(m => m.type === 'wolf'), 'original region has wolves');
+  assert.deepEqual(a.errors, [], 'no errors in first-map Chromium browser A');
+  assert.deepEqual(b.errors, [], 'no errors in first-map Chromium browser B');
+  console.log('BROWSER PASS: registration, audio, 2 players, arena shared HP and Joan 1-2 server-owned mobs');
   await a.context.close();
   await b.context.close();
 } finally {
