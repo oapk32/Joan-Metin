@@ -185,7 +185,47 @@ try {
   assert.ok(firstMapMobs.some(m => m.type === 'wolf'), 'original region has wolves');
   assert.deepEqual(a.errors, [], 'no errors in first-map Chromium browser A');
   assert.deepEqual(b.errors, [], 'no errors in first-map Chromium browser B');
-  console.log('BROWSER PASS: registration, audio, 2 players, arena shared HP and Joan 1-2 server-owned mobs');
+  // Original v134 renderer with new authoritative server-owned monsters.
+  // This is a distinct online mode; do not load or overwrite offline saves.
+  await Promise.all([
+    a.page.goto(base + '/account/', { waitUntil: 'domcontentloaded' }),
+    b.page.goto(base + '/account/', { waitUntil: 'domcontentloaded' })
+  ]);
+  const onlineLabel = 'Online v původní grafice 1–2 (test)';
+  await until(async () => (await a.page.getByRole('link', { name: onlineLabel }).count()) > 0,
+    'native v134 online link available');
+  const onlineA = await a.page.getByRole('link', { name: onlineLabel }).first().getAttribute('href');
+  const onlineB = await b.page.getByRole('link', { name: onlineLabel }).first().getAttribute('href');
+  assert.match(onlineA, /^\/joan\/\?online=1&character=[1-9]\d*$/);
+  await delay(300);
+  await Promise.all([
+    a.page.goto(base + onlineA, { waitUntil: 'domcontentloaded' }),
+    b.page.goto(base + onlineB, { waitUntil: 'domcontentloaded' })
+  ]);
+  await until(() => a.page.evaluate(() => window.JoanOnline?.testState?.().connected === true),
+    'first original v134 canvas connected to Oracle-authoritative mobs', 18000);
+  await until(() => b.page.evaluate(() => window.JoanOnline?.testState?.().connected === true),
+    'second original v134 canvas connected', 18000);
+  const nativeA = await a.page.evaluate(() => window.JoanOnline.testState());
+  const nativeB = await b.page.evaluate(() => window.JoanOnline.testState());
+  assert.equal(nativeA.players.length, 2, 'native map AOI includes two live characters');
+  assert.equal(nativeB.players.length, 2, 'both receive server-owned nearby characters');
+  assert.ok(nativeA.mobs.some(m => m.type === 'dog'), 'server dogs in original v134 graphics');
+  assert.ok(nativeA.mobs.some(m => m.type === 'wolf'), 'server wolves in original v134 graphics');
+  assert.equal(await a.page.locator('canvas#game').count(), 1, 'original game canvas preserved');
+  assert.equal(await a.page.locator('#creation').evaluate(el => el.classList.contains('hidden')),
+    true, 'offline roster overlay never appears online');
+  await a.page.keyboard.down('d');
+  await delay(320);
+  await a.page.keyboard.up('d');
+  await until(() => a.page.evaluate(() => {
+    const frames = window.__combatFrames || [];
+    return frames.some(m => m.type === 'combat-delta' && m.playersChanged?.some(p => p.id === window.JoanOnline.testState().myId));
+  }), 'native WASD sends authoritative movement');
+  await delay(150);
+  assert.deepEqual(a.errors, [], 'native first-map renderer has no uncaught JavaScript errors');
+  assert.deepEqual(b.errors, [], 'second native first-map renderer has no uncaught JavaScript errors');
+  console.log('BROWSER PASS: original v134 canvas, online mode isolation, 2 server-owned players, wolves and keyboard movement');
   await a.context.close();
   await b.context.close();
 } finally {
