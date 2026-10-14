@@ -77,15 +77,21 @@ export function patchV134OnlineGame(source) {
       },
       swing: angle => {
         if (!player) return;
+        // Render the equipped v134 weapon/pose, but never run its local hit logic.
+        // Damage and attack cooldown are decided by the authoritative server.
+        const kind = weaponKind();
+        const ranged = kind === 'bow';
+        const duration = ranged ? 0.40 : 0.30;
         player.dir = angle;
         player.combo = ((player.combo || 0) + 1) % 3;
         player.swingStart = time;
-        player.swingUntil = time + 0.30;
+        player.swingUntil = time + duration;
         player.action = {
-          kind: 'basic', weapon: 'sword', angle,
-          start: time, end: time + 0.30, duration: 0.30,
-          hitAt: time + 0.12, rootUntil: time + 0.23,
-          combo: player.combo, ranged: false
+          kind: 'basic', weapon: kind, room: current, angle,
+          start: time, end: time + duration, duration,
+          hitAt: time + duration * (ranged ? 0.55 : 0.4),
+          rootUntil: time + duration * 0.78,
+          combo: player.combo, ranged
         };
       },
       setDrops: personal => { drops = personal; }
