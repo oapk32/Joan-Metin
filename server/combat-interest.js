@@ -4,7 +4,7 @@ export const SECTOR_SIZE = 220;
 export const VISIBILITY_RADIUS = 440;
 const fields = Object.freeze({
   players: ['x', 'y', 'hp', 'maxHp', 'xp', 'yang', 'kills', 'name', 'cls', 'mapId'],
-  mobs: ['x', 'y', 'hp', 'maxHp', 'kind', 'mapId']
+  mobs: ['x', 'y', 'hp', 'maxHp', 'kind', 'type', 'mapId']
 });
 const cellKey = (mapId, x, y) =>
   mapId + ':' + Math.floor(x / SECTOR_SIZE) + ':' + Math.floor(y / SECTOR_SIZE);
