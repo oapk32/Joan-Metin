@@ -6,7 +6,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createDatabasePool } from './db.js';
 import { registerAccount, authenticateAccount } from './auth.js';
 import { createAuthHttp } from './auth-http.js';
-import { listCharacters, getCharacter, createCharacter } from './characters.js';
+import { listCharacters, getCharacter, createCharacter, validId } from './characters.js';
 import { createCharactersHttp } from './characters-http.js';
 import { startCombatArena } from './combat-ws.js';
 import { createJoanEdgeWorld } from './v134-first-map.js';
@@ -102,6 +102,17 @@ const server = http.createServer(async (req, res) => {
   if (audioAssets.serve(req, res, pathname)) return;
   if (req.method !== 'GET') { res.writeHead(405).end('Method not allowed'); return; }
   if (pathname === '/joan') { res.writeHead(308, { location: '/joan/' }).end(); return; }
+  // Never fall back to browser-side singleplayer under an "online=1" URL.
+  // Unknown, missing or repeated character IDs must return to the account
+  // selector; the WebSocket independently verifies character ownership.
+  if (authHttp && (pathname === '/joan/' || pathname === '/joan/index.html')) {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    if (params.get('online') === '1' &&
+        (params.getAll('character').length !== 1 || !validId(params.get('character')))) {
+      res.writeHead(302, { location: '/account/', 'cache-control': 'no-store' }).end();
+      return;
+    }
+  }
   const resource = ASSETS.get(pathname);
   if (!resource || (pathname === '/joan/js/game-online.js' && !authHttp)) {
     res.writeHead(404).end('Not found'); return;
