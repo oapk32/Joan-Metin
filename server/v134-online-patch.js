@@ -49,7 +49,8 @@ export function patchV134OnlineGame(source) {
     saveRoster = () => false;
     setCreation();
     setupExtendedUI();
-    for (const id of ['btnNew','btnSave','btnSkills','btnTown','btnDeadRoster']) {
+    for (const id of ['btnNew','btnSave','btnSkills','btnTown','btnDeadRoster',
+      'btnExport','btnImport','importFile','btnStart','btnResume']) {
       const el = $(id);
       if (el) el.disabled = true;
     }
