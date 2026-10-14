@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js && node --check db.js && node --check db-check.js && node --check auth.js && node --check auth-http.js && node --check public/account.js && node --check ../client/js/mp-bridge.js && node --check ../client/js/game.js && node --check characters.js && node --check characters-http.js && node --check migrations/migrate.js && node --check combat-world.js && node --check combat-ws.js && node --check public/arena.js && node --check audio-assets.js && node --check combat-interest.js && node --check v134-first-map.js",
+    "check": "node --check index.js && node --check db.js && node --check db-check.js && node --check auth.js && node --check auth-http.js && node --check public/account.js && node --check ../client/js/mp-bridge.js && node --check ../client/js/v134-online.js && node --check v134-online-patch.js && node --check ../client/js/game.js && node --check characters.js && node --check characters-http.js && node --check migrations/migrate.js && node --check combat-world.js && node --check combat-ws.js && node --check public/arena.js && node --check audio-assets.js && node --check combat-interest.js && node --check v134-first-map.js",
     "test": "node --test tests/*.test.js",
     "db:check": "node db-check.js",
     "db:migrations": "node migrations/migrate.js"
