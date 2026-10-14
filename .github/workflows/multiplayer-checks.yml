@@ -37,7 +37,7 @@ jobs:
         working-directory: server
         run: npm run check
       - name: Oracle operations scripts syntax
-        run: bash -n server/ops/joanctl.sh server/ops/backup-db.sh
+        run: bash -n server/ops/joanctl.sh server/ops/backup-db.sh server/ops/beta-preflight.sh
       - name: Original release parity
         run: python scripts/verify.py
       - name: Multiplayer integration test
