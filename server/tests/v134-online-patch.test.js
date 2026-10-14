@@ -20,6 +20,9 @@ test('Original v134 game and offline saves remain byte-for-byte untouched', () =
   assert.doesNotMatch(original, /JOAN_ONLINE_BOOT|window\.JoanOnline\.frame/);
   assert.match(online, /window\.JoanOnline\.frame/);
   assert.match(online, /window\.JoanOnline\.attackIntent/);
+  assert.match(online, /const kind = weaponKind\(\);/);
+  assert.match(online, /ranged = kind === 'bow'/);
+  assert.match(online, /weapon: kind, room: current/);
   assert.match(online, /saveGame = \(\) => false;/);
   assert.match(online, /saveRoster = \(\) => false;/);
   assert.match(online, /\/\/ Online mode: preserve offline roster/);
@@ -35,6 +38,17 @@ test('Online HTML changes only game script; original HTML still loads singleplay
   assert.match(online, /<script src="js\/v134-online\.js"><\/script>/);
   assert.match(online, /<script src="js\/mp-bridge\.js"><\/script>/);
   assert.throws(() => onlineV134Html(online), /incompatible/);
+});
+
+test('Native online input and death display never use browser-side combat or rewards', () => {
+  const online = read('client/js/v134-online.js');
+  assert.match(online, /e\.stopImmediatePropagation\(\)/);
+  assert.match(online, /player\.deathState = \{ reviveAt: Date\.now\(\) \+ 4000/);
+  assert.match(online, /else if \(self\.hp > 0 && player\.deathState\)/);
+  assert.match(online, /send\('combat-attack', \{ mobId: mob\.id \}\)/);
+  assert.match(online, /send\('combat-pickup', \{ dropId: item\.id \}\)/);
+  assert.doesNotMatch(online, /localStorage|sessionStorage/);
+  assert.doesNotThrow(() => new Script(online, { filename: 'v134-online.js' }));
 });
 
 test('Patch explicitly rejects mismatched v134 source instead of silently falling back to local combat', () => {
