@@ -32,13 +32,25 @@ const charactersHttp = authHttp ? createCharactersHttp({
   get: (accountId, id) => getCharacter(pool, accountId, id),
   create: (accountId, input) => createCharacter(pool, accountId, input)
 }) : null;
+// A character may play on only one server map at a time, including arena.
+const occupiedCharacters = new Map();
+function claimCharacter(id, socket) {
+  if (occupiedCharacters.has(id) || occupiedCharacters.size >= 30) return false;
+  occupiedCharacters.set(id, socket);
+  return true;
+}
+function releaseCharacter(id, socket) {
+  if (occupiedCharacters.get(id) === socket) occupiedCharacters.delete(id);
+}
 const combatArena = authHttp ? startCombatArena({
+  claimCharacter, releaseCharacter,
   loadCharacter: (accountId, characterId) => getCharacter(pool, accountId, characterId)
 }) : null;
 // One shared server-owned population for the first v134 combat region.
 // No client-controlled map changes; owner checks remain identical to the arena.
 const joanEdge = authHttp ? startCombatArena({
   socketPath: '/v134-ws',
+  claimCharacter, releaseCharacter,
   world: createJoanEdgeWorld(),
   loadCharacter: (accountId, characterId) => getCharacter(pool, accountId, characterId)
 }) : null;
