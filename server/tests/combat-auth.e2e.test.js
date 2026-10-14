@@ -81,6 +81,22 @@ test('PostgreSQL/private auth: owned characters join one shared combat arena', {
   const admitted = await fetch(base + '/arena/', { headers: { cookie: cookieA } });
   assert.equal(admitted.status, 200);
 
+  // Online URLs with an absent or invalid character must never silently
+  // render the local v134 character roster (which has offline import/export).
+  for (const path of ['/joan/?online=1', '/joan/?online=1&character=invalid',
+    '/joan/?online=1&character=1&character=2']) {
+    const bad = await fetch(base + path, {
+      headers: { cookie: cookieA }, redirect: 'manual'
+    });
+    assert.equal(bad.status, 302, path);
+    assert.equal(bad.headers.get('location'), '/account/');
+  }
+  const onlinePage = await fetch(base + '/joan/?online=1&character=' + idA, {
+    headers: { cookie: cookieA }
+  });
+  assert.equal(onlinePage.status, 200);
+  assert.match(await onlinePage.text(), /js\/game-online\.js/);
+
   function connect(id, cookie) {
     const socket = new WebSocket(wsBase + '/combat-ws?character=' + id, {
       headers: { Cookie: cookie, Origin: base }
