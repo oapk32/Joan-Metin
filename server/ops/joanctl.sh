@@ -11,12 +11,16 @@ Použití: bash ops/joanctl.sh PRIKAZ
   restart  - restartuje Joan
   logs     - posledních 50 řádků logu hry
   db       - stav PostgreSQL
+  preflight - kontrola připravenosti soukromé bety (bez změn)
   help     - tento tahák
 HELP
 }
 if (( $# > 0 )); then command_name="$1"; else command_name="help"; fi
 
 case "$command_name" in
+  preflight)
+    bash "$(dirname "${BASH_SOURCE[0]}")/beta-preflight.sh"
+    ;;
   start|stop|restart)
     if ! systemctl list-unit-files joan-online.service --no-legend 2>/dev/null | grep -q '^joan-online.service'; then
       echo "Služba joan-online ještě není nainstalovaná. Použij návod docs/SPRAVA_ORACLE.md." >&2
