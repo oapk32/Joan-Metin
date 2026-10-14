@@ -9,6 +9,7 @@ import { createAuthHttp } from './auth-http.js';
 import { listCharacters, getCharacter, createCharacter } from './characters.js';
 import { createCharactersHttp } from './characters-http.js';
 import { startCombatArena } from './combat-ws.js';
+import { createJoanEdgeWorld } from './v134-first-map.js';
 import { createAudioAssets } from './audio-assets.js';
 
 const HOST = process.env.JOAN_BIND_HOST || '127.0.0.1'; // bind to Tailscale IP only when explicitly requested
@@ -32,6 +33,13 @@ const charactersHttp = authHttp ? createCharactersHttp({
   create: (accountId, input) => createCharacter(pool, accountId, input)
 }) : null;
 const combatArena = authHttp ? startCombatArena({
+  loadCharacter: (accountId, characterId) => getCharacter(pool, accountId, characterId)
+}) : null;
+// One shared server-owned population for the first v134 combat region.
+// No client-controlled map changes; owner checks remain identical to the arena.
+const joanEdge = authHttp ? startCombatArena({
+  socketPath: '/v134-ws',
+  world: createJoanEdgeWorld(),
   loadCharacter: (accountId, characterId) => getCharacter(pool, accountId, characterId)
 }) : null;
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -183,6 +191,11 @@ function broadcast(payload) {
 const clamp = (value, max) => Math.max(0, Math.min(max, value));
 wss.on('connection', (socket, request) => {
   if (authHttp) socket.authKey = authHttp.sessionFor(request)?.key;
+  if (request.url?.startsWith('/v134-ws')) {
+    if (!joanEdge) { socket.close(1008, 'Private map only'); return; }
+    void joanEdge.connect(socket, request, authHttp.sessionFor(request));
+    return;
+  }
   if (request.url?.startsWith('/combat-ws')) {
     if (!combatArena) { socket.close(1008, 'Private arena only'); return; }
     void combatArena.connect(socket, request, authHttp.sessionFor(request));
