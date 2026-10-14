@@ -33,18 +33,19 @@
         const item = document.createElement('li');
         item.textContent = character.name + ' · ' + character.class +
           ' · Lv. ' + character.level + ' · uložená revize ' + character.revision + ' · ';
-        const link = document.createElement('a');
-        link.href = '/arena/?character=' + encodeURIComponent(character.id);
-        link.textContent = 'Vyzkoušet společný boj';
-        item.append(link);
-        const edge = document.createElement('a');
-        edge.href = '/arena/?character=' + encodeURIComponent(character.id) + '&region=joan-1-2';
-        edge.textContent = 'Test mapy 1–2 (zatím bez grafiky v134)';
-        item.append(' · ', edge);
+        // Put actual v134 graphics first. The green arena remains a diagnostics tool.
         const online = document.createElement('a');
         online.href = '/joan/?online=1&character=' + encodeURIComponent(character.id);
-        online.textContent = 'Online v původní grafice 1–2 (test)';
-        item.append(' · ', online);
+        online.textContent = 'Hrát online · původní grafika 1–2 (test)';
+        item.append(online);
+        const link = document.createElement('a');
+        link.href = '/arena/?character=' + encodeURIComponent(character.id);
+        link.textContent = 'Testovací aréna';
+        item.append(' · ', link);
+        const edge = document.createElement('a');
+        edge.href = '/arena/?character=' + encodeURIComponent(character.id) + '&region=joan-1-2';
+        edge.textContent = 'Diagnostika serveru mapy 1–2';
+        item.append(' · ', edge);
         list.append(item);
       }
       $('characterStatus').textContent = response.characters.length
