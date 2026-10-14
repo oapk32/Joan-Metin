@@ -104,7 +104,9 @@
         body: JSON.stringify({ username: $('username').value, password: $('password').value })
       });
       $('password').value = '';
-      window.location.assign('/joan/');
+      // Login returns to the account-owned online character list, not the
+      // offline v134 browser roster. Players choose an explicit online map.
+      window.location.assign('/account/');
     } catch (error) {
       status.textContent = error.message;
       $('password').value = '';
