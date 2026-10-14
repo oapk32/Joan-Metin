@@ -25,14 +25,26 @@ const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const distanceSquared = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 
-export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_DEFINITIONS } = {}) {
+export function createCombatWorld({
+  random = Math.random, mobDefinitions = MOB_DEFINITIONS,
+  defaultMapId = 'arena', mapWidth = ARENA.width, mapHeight = ARENA.height,
+  spawnX = 115, spawnY = 270
+} = {}) {
+  if (!Number.isFinite(mapWidth) || mapWidth < 100 || mapWidth > 10000 ||
+      !Number.isFinite(mapHeight) || mapHeight < 100 || mapHeight > 10000 ||
+      !Number.isFinite(spawnX) || !Number.isFinite(spawnY)) {
+    throw new Error('Invalid authoritative world dimensions');
+  }
   const players = new Map(); // character ID => mutable player state
   const dropsByPlayer = new Map(); // personal ground loot, never a shared pool
   const lootRevision = new Map(); // per-player change counter; no loot in frequent world packets
   let lastLootCleanupMs = -Infinity;
   let fullTargetScans = 0;
   let nextDropId = 1;
-  const validMaps = new Set(['arena', ...mobDefinitions.map(m => m.mapId || 'arena')]);
+  const validMaps = new Set(['arena', defaultMapId, ...mobDefinitions.map(m => m.mapId || 'arena')]);
+  if (typeof defaultMapId !== 'string' || !validMaps.has(defaultMapId)) {
+    throw new Error('Invalid spawn map');
+  }
   const mobs = new Map(mobDefinitions.map(d => [d.id, {
     ...d, mapId: d.mapId || 'arena', maxHp: d.hp, spawnX: d.x, spawnY: d.y,
     deadUntil: 0, lastAttack: 0, targetId: null, nextTargetScanAt: 0,
@@ -45,9 +57,9 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
       return null;
     }
     const player = {
-      id: character.id, name: character.name.slice(0, 24), mapId: 'arena',
+      id: character.id, name: character.name.slice(0, 24), mapId: defaultMapId,
       cls: ['warrior', 'ninja', 'sura', 'shaman'].includes(character.class) ? character.class : 'warrior',
-      x: 115 + (players.size % 3) * 32, y: 270, hp: 100, maxHp: 100,
+      x: spawnX + (players.size % 3) * 32, y: spawnY, hp: 100, maxHp: 100,
       inputX: 0, inputY: 0, lastAttack: -Infinity, deadUntil: 0,
       xp: 0, yang: 0, kills: 0, testInventory: []
     };
@@ -58,12 +70,12 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
   }
 
   // Server-side map transitions only; never wire to arbitrary client input.
-  function transferPlayerMap(id, mapId, x = 115, y = 270) {
+  function transferPlayerMap(id, mapId, x = spawnX, y = spawnY) {
     const player = players.get(id);
     if (!player || !validMaps.has(mapId) || !Number.isFinite(x) || !Number.isFinite(y)) return false;
     player.mapId = mapId;
-    player.x = clamp(x, 18, ARENA.width - 18);
-    player.y = clamp(y, 18, ARENA.height - 18);
+    player.x = clamp(x, 18, mapWidth - 18);
+    player.y = clamp(y, 18, mapHeight - 18);
     player.inputX = 0; player.inputY = 0;
     for (const mob of mobs.values()) {
       mob.contributions.delete(id);
@@ -131,7 +143,7 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
         awarded.push(id);
         // Independent roll PER eligible character. No shared winner or
         // first-to-pick race. Only that owner sees/can pick up this item.
-        const dropRule = TEST_DROP_TABLE[mob.kind];
+        const dropRule = TEST_DROP_TABLE[mob.kind]; // temporary beta drop, NOT original v134 loot
         const ownerDrops = dropsByPlayer.get(id);
         if (dropRule && ownerDrops) {
           const roll = random();
@@ -188,13 +200,13 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
       if (p.hp === 0) {
         if (nowMs >= p.deadUntil) {
           p.hp = p.maxHp;
-          p.x = 115; p.y = 270;
+          p.x = spawnX; p.y = spawnY;
           p.inputX = 0; p.inputY = 0;
         }
         continue;
       }
-      p.x = clamp(p.x + p.inputX * ARENA.playerSpeed * dt, 18, ARENA.width - 18);
-      p.y = clamp(p.y + p.inputY * ARENA.playerSpeed * dt, 18, ARENA.height - 18);
+      p.x = clamp(p.x + p.inputX * ARENA.playerSpeed * dt, 18, mapWidth - 18);
+      p.y = clamp(p.y + p.inputY * ARENA.playerSpeed * dt, 18, mapHeight - 18);
     }
     // A fully empty arena has no player-facing simulation to update.
     // Dead monsters still respawn on the next step after a player rejoins.
@@ -260,8 +272,8 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
       const nearest = Math.sqrt(nearestSquared);
       if (nearest > 34) {
         const travel = Math.min(mob.speed * dt, Math.max(0, nearest - 32));
-        mob.x = clamp(mob.x + (target.x - mob.x) / nearest * travel, 16, ARENA.width - 16);
-        mob.y = clamp(mob.y + (target.y - mob.y) / nearest * travel, 16, ARENA.height - 16);
+        mob.x = clamp(mob.x + (target.x - mob.x) / nearest * travel, 16, mapWidth - 16);
+        mob.y = clamp(mob.y + (target.y - mob.y) / nearest * travel, 16, mapHeight - 16);
       } else if (nowMs - mob.lastAttack >= 1250) {
         mob.lastAttack = nowMs;
         target.hp = Math.max(0, target.hp - mob.attack);
@@ -278,7 +290,7 @@ export function createCombatWorld({ random = Math.random, mobDefinitions = MOB_D
   function snapshotWorld() {
     return {
       type: 'combat-snapshot',
-      width: ARENA.width, height: ARENA.height,
+      width: mapWidth, height: mapHeight,
       players: [...players.values()].map(p => ({
         id: p.id, name: p.name, cls: p.cls, mapId: p.mapId, x: p.x, y: p.y,
         hp: p.hp, maxHp: p.maxHp, xp: p.xp, yang: p.yang, kills: p.kills
