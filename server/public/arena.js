@@ -5,13 +5,21 @@
   const status = document.getElementById('status');
   const stats = document.getElementById('stats');
   const message = document.getElementById('combatMessage');
-  const character = new URL(location.href).searchParams.get('character');
+  const params = new URL(location.href).searchParams;
+  const character = params.get('character');
+  const firstMap = params.get('region') === 'joan-1-2';
+  if (firstMap) {
+    document.querySelector('h1').textContent = 'Okraj Joanu 1–2 · serverový test';
+    document.querySelector('.notice').textContent =
+      'Společná populace 5 psů a 5 vlků podle v134. Zobrazení je zatím testovací, ' +
+      'nikoliv původní grafika mapy. Server počítá boj; EXP, Yangy a loot se neukládají.';
+  }
   if (!/^[1-9][0-9]{0,18}$/.test(character || '')) {
     status.textContent = 'Nejdřív si vyber online postavu na stránce účtu.';
     return;
   }
   const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') +
-    location.host + '/combat-ws?character=' + encodeURIComponent(character));
+    location.host + (firstMap ? '/v134-ws' : '/combat-ws') + '?character=' + encodeURIComponent(character));
   const keys = new Set();
   let myId = null;
   let snapshot = { players: [], mobs: [] };
@@ -47,9 +55,14 @@
     try { value = JSON.parse(event.data); } catch { return; }
     if (value.type === 'combat-welcome') {
       myId = value.id;
-      status.textContent = 'Připojeno do společné arény';
+      status.textContent = firstMap ? 'Připojeno do Okraje Joanu 1–2' : 'Připojeno do společné arény';
     } else if (value.type === 'combat-snapshot' && Array.isArray(value.players) && Array.isArray(value.mobs)) {
       snapshot = value;
+      if (Number.isInteger(value.width) && Number.isInteger(value.height) &&
+          value.width > 100 && value.width <= 2000 && value.height > 100 && value.height <= 1200) {
+        canvas.width = value.width;
+        canvas.height = value.height;
+      }
       refreshStats();
     } else if (value.type === 'combat-delta') {
       applyDelta(value);
