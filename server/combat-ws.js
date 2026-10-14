@@ -9,7 +9,12 @@ const MAX_MESSAGE_BYTES = 256;
 
 // Shared, single-instance test arena. Lifetime of rewards = Node.js process.
 // No character economics are modified in PostgreSQL in this prototype.
-export function startCombatArena({ loadCharacter, clock = () => Date.now(), world = createCombatWorld(), socketPath = '/combat-ws' }) {
+export function startCombatArena({
+  loadCharacter, clock = () => Date.now(), world = createCombatWorld(),
+  socketPath = '/combat-ws',
+  // Optional server-wide reservation shared by multiple map handlers.
+  claimCharacter = () => true, releaseCharacter = () => {}
+}) {
   const clients = new Map(); // WebSocket => bound character ID
   const sentLootRevisions = new Map(); // send personal items only when they change
   const previouslyVisible = new Map(); // WebSocket -> player's last AOI-visible entities
@@ -91,8 +96,13 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
       socket.close(1008, 'Character not owned');
       return;
     }
+    if (!claimCharacter(character.id, socket)) {
+      socket.close(1008, 'Character already playing or server full');
+      return;
+    }
     const player = world.join(character);
     if (!player) {
+      releaseCharacter(character.id, socket);
       socket.close(1008, 'Character already playing or arena full');
       return;
     }
@@ -134,6 +144,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
         sentLootRevisions.delete(socket);
         previouslyVisible.delete(socket);
         world.leave(character.id);
+        releaseCharacter(character.id, socket);
       }
     });
   }
@@ -141,7 +152,11 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
   function stop() {
     clearInterval(tick);
     clearInterval(broadcast);
-    for (const socket of clients.keys()) socket.close(1001, 'Server stopping');
+    for (const [socket, playerId] of clients) {
+      socket.close(1001, 'Server stopping');
+      world.leave(playerId);
+      releaseCharacter(playerId, socket);
+    }
     clients.clear();
     sentLootRevisions.clear();
     previouslyVisible.clear();
