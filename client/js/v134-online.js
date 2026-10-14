@@ -36,6 +36,7 @@
     e.preventDefault();
     e.stopImmediatePropagation();
     keysHeld.add(k);
+    if (k === 'attack' && !e.repeat) attackIntent();
     if (k === 'pickup' && !e.repeat) pickUp();
   }, true);
   window.addEventListener('keyup', e => {
