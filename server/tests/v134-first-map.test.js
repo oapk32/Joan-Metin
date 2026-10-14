@@ -16,7 +16,7 @@ test('v134 Joan 1–2 defines five dogs, five wolves and one shared Metin', () =
   assert.equal(JOAN_EDGE_MOBS.filter(m => m.type === 'stone').length, 1);
   assert.equal(JOAN_EDGE_MOBS.filter(m => m.type === 'dog').length, 5);
   assert.equal(JOAN_EDGE_MOBS.filter(m => m.type === 'wolf').length, 5);
-  assert.equal(new Set(JOAN_EDGE_MOBS.map(m => m.id)).size, 10);
+  assert.equal(new Set(JOAN_EDGE_MOBS.map(m => m.id)).size, 11);
   const world = createJoanEdgeWorld();
   const a = world.join(hero('1','Alice'));
   const b = world.join(hero('2','Bob'));
@@ -140,7 +140,7 @@ test('v134 first-map WebSocket requires owned character, uses shared HP and reje
   const initial = receivedA.find(m => m.type === 'combat-snapshot' && m.players.length === 2);
   assert.equal(initial.width, 1100);
   assert.equal(initial.height, 660);
-  assert.ok(initial.mobs.every(m => ['dog','wolf'].includes(m.type)));
+  assert.ok(initial.mobs.every(m => ['dog','wolf','stone'].includes(m.type)));
   assert.equal(initial.players[0].mapId, JOAN_EDGE.mapId);
   const refused = new WebSocket(base+'/v134-ws?character=999');
   t.after(() => refused.terminate());
