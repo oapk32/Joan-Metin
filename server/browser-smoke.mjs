@@ -72,7 +72,7 @@ async function createBrowserPlayer(index) {
   await page.locator('#characterClass').selectOption('warrior');
   await page.locator('#createCharacterBtn').click();
   await page.getByText(name, { exact: false }).waitFor();
-  const link = page.getByRole('link', { name: 'Vyzkoušet společný boj' }).first();
+  const link = page.getByRole('link', { name: 'Testovací aréna' }).first();
   const href = await link.getAttribute('href');
   assert.match(href, /^\/arena\/\?character=[1-9]\d*$/);
 
@@ -159,13 +159,13 @@ try {
     b.page.goto(base + '/account/', { waitUntil:'domcontentloaded' })
   ]);
   await until(async () => (await a.page.getByRole('link', {
-    name:'Test mapy 1–2 (zatím bez grafiky v134)'
+    name:'Diagnostika serveru mapy 1–2'
   }).count()) > 0, 'Joan first-map entry link');
   const edgeA = await a.page.getByRole('link', {
-    name:'Test mapy 1–2 (zatím bez grafiky v134)'
+    name:'Diagnostika serveru mapy 1–2'
   }).first().getAttribute('href');
   const edgeB = await b.page.getByRole('link', {
-    name:'Test mapy 1–2 (zatím bez grafiky v134)'
+    name:'Diagnostika serveru mapy 1–2'
   }).first().getAttribute('href');
   assert.match(edgeA, /^\/arena\/\?character=[1-9]\d*&region=joan-1-2$/);
   await delay(200); // previous arena socket closes and releases its character
@@ -194,7 +194,7 @@ try {
     a.page.goto(base + '/account/', { waitUntil: 'domcontentloaded' }),
     b.page.goto(base + '/account/', { waitUntil: 'domcontentloaded' })
   ]);
-  const onlineLabel = 'Online v původní grafice 1–2 (test)';
+  const onlineLabel = 'Hrát online · původní grafika 1–2 (test)';
   await until(async () => (await a.page.getByRole('link', { name: onlineLabel }).count()) > 0,
     'native v134 online link available');
   const onlineA = await a.page.getByRole('link', { name: onlineLabel }).first().getAttribute('href');
