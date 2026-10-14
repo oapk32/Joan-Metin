@@ -225,7 +225,44 @@ try {
   await delay(150);
   assert.deepEqual(a.errors, [], 'native first-map renderer has no uncaught JavaScript errors');
   assert.deepEqual(b.errors, [], 'second native first-map renderer has no uncaught JavaScript errors');
-  console.log('BROWSER PASS: original v134 canvas, online mode isolation, 2 server-owned players, wolves and keyboard movement');
+  // Attack one real first-map dog from v134 canvas, with keyboard movement
+  // and a server-owned hit/HP delta observed by the other browser.
+  let firstMob = null;
+  let closeEnough = false;
+  for (let step = 0; step < 40; step++) {
+    const s = await a.page.evaluate(() => window.JoanOnline.testState());
+    const me = s.players.find(p => p.id === s.myId);
+    firstMob = s.mobs.find(m => m.id === 'joan-dog-1' && m.hp > 0);
+    assert.ok(me && firstMob, 'first region enemy and controlled hero are visible');
+    const x = firstMob.x - me.x, y = firstMob.y - me.y;
+    if (Math.hypot(x, y) < 54) { closeEnough = true; break; }
+    const movement = [];
+    if (Math.abs(x) > 12) movement.push(x > 0 ? 'd' : 'a');
+    if (Math.abs(y) > 12) movement.push(y > 0 ? 's' : 'w');
+    for (const key of movement) await a.page.keyboard.down(key);
+    await delay(150);
+    for (const key of movement) await a.page.keyboard.up(key);
+    await delay(40);
+  }
+  assert.ok(closeEnough, 'keyboard moves original v134 hero within real server combat range');
+  const initialHp = firstMob.hp;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await a.page.keyboard.press('Space');
+    await delay(580);
+    const accepted = await a.page.evaluate(() => window.__combatFrames
+      .some(m => m.type === 'combat-hit' && m.ok && m.mobId === 'joan-dog-1'));
+    if (accepted) break;
+  }
+  await until(() => a.page.evaluate(() => window.__combatFrames.some(m =>
+    m.type === 'combat-hit' && m.ok && m.mobId === 'joan-dog-1')),
+    'Space attacks server-owned v134 dog', 3000);
+  await until(() => b.page.evaluate(({ id, initialHp }) => window.__combatFrames
+    .some(m => m.type === 'combat-delta' && m.mobsChanged?.some(
+      mob => mob.id === id && mob.hp < initialHp
+    )), { id: 'joan-dog-1', initialHp }), 'second v134 canvas sees same real HP loss', 6000);
+  assert.deepEqual(a.errors, [], 'native v134 attacker has no page errors after combat');
+  assert.deepEqual(b.errors, [], 'native v134 observer has no page errors after combat');
+  console.log('BROWSER PASS: native v134 real keyboard PvE attack, shared server HP in two original canvases');
   await a.context.close();
   await b.context.close();
 } finally {
