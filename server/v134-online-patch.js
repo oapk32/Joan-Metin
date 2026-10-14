@@ -84,6 +84,7 @@ export function patchV134OnlineGame(source) {
         player.action = {
           kind: 'basic', weapon: 'sword', angle,
           start: time, end: time + 0.30, duration: 0.30,
+          hitAt: time + 0.12, rootUntil: time + 0.23,
           combo: player.combo, ranged: false
         };
       },
