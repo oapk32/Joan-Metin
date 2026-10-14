@@ -44,7 +44,7 @@ async function createBrowserPlayer(index) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
   const page = await context.newPage();
   const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
+  page.on('pageerror', error => errors.push(error.stack || error.message));
   await page.goto(base + '/account/', { waitUntil: 'domcontentloaded' });
   await page.locator('#registerMode').click();
   const username = 'browser' + randomBytes(5).toString('hex') + index;
