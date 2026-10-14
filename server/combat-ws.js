@@ -9,7 +9,7 @@ const MAX_MESSAGE_BYTES = 256;
 
 // Shared, single-instance test arena. Lifetime of rewards = Node.js process.
 // No character economics are modified in PostgreSQL in this prototype.
-export function startCombatArena({ loadCharacter, clock = () => Date.now(), world = createCombatWorld() }) {
+export function startCombatArena({ loadCharacter, clock = () => Date.now(), world = createCombatWorld(), socketPath = '/combat-ws' }) {
   const clients = new Map(); // WebSocket => bound character ID
   const sentLootRevisions = new Map(); // send personal items only when they change
   const previouslyVisible = new Map(); // WebSocket -> player's last AOI-visible entities
@@ -63,7 +63,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
     try {
       const address = new URL(request.url, 'http://localhost');
       characterId = address.searchParams.get('character');
-      if (address.pathname !== '/combat-ws' || !validId(characterId) ||
+      if (address.pathname !== socketPath || !validId(characterId) ||
           address.searchParams.getAll('character').length !== 1) {
         socket.close(1008, 'Invalid character');
         return;
@@ -99,7 +99,7 @@ export function startCombatArena({ loadCharacter, clock = () => Date.now(), worl
     clients.set(socket, character.id);
     socket.send(JSON.stringify({
       type: 'combat-welcome', id: player.id,
-      note: 'Arena demo only. Rewards do not persist.'
+      note: 'Private shared PvE beta. Rewards do not persist.'
     }));
     sendJoinSnapshots();
 
