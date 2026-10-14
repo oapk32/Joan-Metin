@@ -50,10 +50,12 @@ async function createBrowserPlayer(index) {
   const username = 'browser' + randomBytes(5).toString('hex') + index;
   await page.locator('#username').fill(username);
   await page.locator('#password').fill('random-ci-Only-Long-Passphrase-2026');
-  await Promise.all([
-    page.waitForURL('**/joan/', { timeout: 15000 }),
-    page.locator('#submit').click()
-  ]);
+  await page.locator('#submit').click();
+  await until(() => page.locator('#loggedName').textContent().then(name => name === username),
+    'successful registration opens online character selection');
+  // The offline game remains available as an explicit separate choice and
+  // must still load its original audio without modifying any local saves.
+  await page.goto(base + '/joan/', { waitUntil: 'domcontentloaded' });
   await page.locator('#game').waitFor({ state: 'attached' });
   await until(async () => page.evaluate(() => !!window.__AUDIO_ASSETS__?.music), 'audio manifest evaluated');
   const music = await page.evaluate(() => window.__AUDIO_ASSETS__.music);
@@ -215,6 +217,8 @@ try {
   assert.ok(nativeA.mobs.some(m => m.type === 'wolf'), 'server wolves in original v134 graphics');
   assert.ok(nativeA.mobs.some(m => m.type === 'stone'), 'v134 canvas renders a shared Metin smutku');
   assert.equal(await a.page.locator('canvas#game').count(), 1, 'original game canvas preserved');
+  assert.equal(await a.page.evaluate(() => typeof window.JoanMP), 'undefined',
+    'authoritative native client must not also publish client-controlled presence');
   assert.equal(await a.page.locator('#creation').evaluate(el => el.classList.contains('hidden')),
     true, 'offline roster overlay never appears online');
   await a.page.keyboard.down('d');
