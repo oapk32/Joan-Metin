@@ -22,13 +22,23 @@ let serverErrors = '';
 child.stderr.on('data', chunk => { serverErrors += chunk; });
 let browser;
 const errors = [];
+const activePages = [];
 async function until(fn, label, ms = 16000) {
   const start = Date.now();
   while (Date.now() - start < ms) {
     try { if (await fn()) return; } catch {}
     await sleep(100);
   }
-  throw Error('Timed out ' + label + '\n' + serverErrors + '\n' + errors.join('\n'));
+  const diagnostics = [];
+  for (const page of activePages) {
+    try { diagnostics.push(await page.evaluate(() => ({
+      world: window.__coopWorldTest?.get(),
+      net: window.JoanMP?.getCoopDebug(),
+      hud: document.body?.innerText?.slice(-400)
+    }))); } catch (e) { diagnostics.push(String(e)); }
+  }
+  throw Error('Timed out ' + label + '\n' + JSON.stringify(diagnostics) +
+    '\n' + serverErrors + '\n' + errors.join('\n'));
 }
 async function world(page) {
   return page.evaluate(() => window.__coopWorldTest?.get() || null);
@@ -36,6 +46,7 @@ async function world(page) {
 async function player(index) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
   const page = await context.newPage();
+  activePages.push(page);
   page.on('pageerror', e => errors.push('player ' + index + ': ' + (e.stack || e.message)));
   await page.goto(base + '/coop/?code=' + code + '&test=1', { waitUntil: 'domcontentloaded' });
   await until(() => page.locator('#btnStart').isVisible(), 'creation ' + index);
