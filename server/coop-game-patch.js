@@ -78,7 +78,7 @@ export function patchCoopGame(source, { worldBrowserTest = false } = {}) {
   result = result.replace(needle, 'want = clamp(((r.width || W) * dpr) / W, 1, 1);');
   // Private CI only, never exposed by the public Quick Tunnel configuration.
   if (worldBrowserTest) {
-    const testNeedle = '    draw();\\n    requestAnimationFrame(loop);';
+    const testNeedle = '    draw();\n    requestAnimationFrame(loop);';
     if (result.split(testNeedle).length !== 2) throw Error('CO-OP browser test anchor missing');
     result = result.replace(testNeedle, `    window.__coopWorldTest = {
       get: () => ({
