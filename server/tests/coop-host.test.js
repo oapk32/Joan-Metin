@@ -66,7 +66,7 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
     const script = await (await fetch(base + '/coop/js/game.js')).text();
     assert.match(script, /want = clamp\(\(\(r.width \|\| W\) \* dpr\) \/ W, 1, 1\);/);
     assert.match(script, /getRemoteVisuals\(current\)/);
-    assert.match(script, /window\.JoanMP\?\.tick\(player, current, now, time, effects, projectiles\)/);
+    assert.match(script, /window\.JoanMP\?\.tick\(player, current, now, time, effects, projectiles, \(\) => player \? v38HeroSpec\(\) : null, world\)/);
 
     const wsPath = 'ws://127.0.0.1:' + port + '/coop-ws?code=';
     await assert.rejects(connect(wsPath + 'wrong-token', base));
