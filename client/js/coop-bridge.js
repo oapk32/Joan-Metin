@@ -27,7 +27,7 @@
   let knownEffects = new WeakSet();
   let visualEvents = [];
   let lastVisual = 0;
-  let lastLookSent = 0, lastLookJson = '';
+  let lastLookSent = 0, lastLookJson = '', lastLookPublished = 0;
   const LOOK_KEYS = new Set(['scale', 'skin', 'hair', 'hairStyle', 'legs', 'boots', 'bootTrim',
     'body', 'sleeve', 'mask', 'plusGlow', 'build', 'look', 'stance', 'agile', 'darkHand',
     'helmet', 'weapon', 'offhand', 'wings', 'v95Robe', 'shape', 'light', 'dark', 'trim',
@@ -168,7 +168,8 @@
       lastLookSent = now;
       const look = publicLook(makeLook());
       const json = JSON.stringify(look);
-      if (look && json.length < 3000 && json !== lastLookJson) {
+      if (look && json.length < 3000 && (json !== lastLookJson || now - lastLookPublished > 4000)) {
+        lastLookPublished = now;
         lastLookJson = json;
         socket.send(JSON.stringify({ type: 'look', look }));
       }
@@ -207,9 +208,10 @@
     }
     if (now - lastStatus >= 1000) {
       lastStatus = now;
+      const geared = [...players.values()].filter(p => p.look?.body && p.look?.weapon).length;
       status('CO-OP ' + (host ? 'HOST' : 'HOSTŮV HOST') + ' · hráči ' + count + '/4 · FPS ' +
         fps + ' · síť ' + (rtt == null ? '...' : rtt + ' ms') +
-        ' · souboje zatím lokální');
+        ' · výstroj ' + geared + '/' + players.size + ' · souboje zatím lokální');
     }
   }
   function getPeers() {
