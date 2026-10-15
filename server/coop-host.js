@@ -183,7 +183,7 @@ wss.on('connection', socket => {
   send(socket, { type: 'welcome', id, host: isHost, max: 4 });
   broadcast({ type: 'count', count: peers.size });
   socket.on('message', bytes => {
-    if (bytes.length > 16384) return;
+    if (bytes.length > 131072) return; // World packets are larger; each protocol branch validates its own fields.
     let msg;
     try { msg = JSON.parse(String(bytes)); } catch { return; }
     if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
