@@ -65,6 +65,8 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
     assert.equal((await fetch(base + '/etc/passwd')).status, 404);
     const script = await (await fetch(base + '/coop/js/game.js')).text();
     assert.match(script, /want = clamp\(\(\(r.width \|\| W\) \* dpr\) \/ W, 1, 1\);/);
+    assert.match(script, /getRemoteVisuals\(current\)/);
+    assert.match(script, /window\.JoanMP\?\.tick\(player, current, now, time, effects, projectiles\)/);
 
     const wsPath = 'ws://127.0.0.1:' + port + '/coop-ws?code=';
     await assert.rejects(connect(wsPath + 'wrong-token', base));
@@ -90,6 +92,37 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
     });
     assert.equal(updated.players[0].cls, 'sura');
     assert.equal(updated.players[0].level, 85);
+    const visualWaiting = nextMessage(guest, 'visual');
+    host.send(JSON.stringify({ type: 'visual', effects: [
+      { type: 'ring', x: 320, y: 330, life: 0.43, max: 0.43, range: 70, col: '#f0ca88' }
+    ] }));
+    const visual = await visualWaiting;
+    assert.equal(visual.from, '1');
+    assert.equal(visual.room, 1);
+    assert.equal(visual.effects[0].type, 'ring');
+    assert.equal(visual.effects[0].col, '#f0ca88');
+    const poseAndShot = {
+      ...msg, name: 'Host',
+      action: { kind: 'skill', progress: 0.5, angle: 1, weapon: 'sword' },
+      shots: [{ x: 400, y: 330, vx: 720, vy: 0, life: 0.4, col: '#ff8888',
+        owner: 'enemy', style: 'magic', variant: 'dragonShot' }]
+    };
+    host.send(JSON.stringify(poseAndShot));
+    const replicated = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { guest.off('message', onMessage); reject(Error('No remote spell snapshot')); }, 4000);
+      function onMessage(bytes) {
+        let value;
+        try { value = JSON.parse(String(bytes)); } catch { return; }
+        if (value.type !== 'peers') return;
+        const peer = value.players?.find(p => p.name === 'Host' && p.action?.kind === 'skill');
+        if (!peer) return;
+        clearTimeout(timer); guest.off('message', onMessage); resolve(peer);
+      }
+      guest.on('message', onMessage);
+    });
+    assert.equal(replicated.action.progress, 0.5);
+    assert.equal(replicated.shots[0].variant, 'dragonShot');
+    assert.equal(replicated.shots[0].owner, 'player');
     await sleep(100);
     guest.send(JSON.stringify({ ...msg, room: 2 }));
     await sleep(250);
