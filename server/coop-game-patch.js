@@ -3,7 +3,7 @@
 const EDITS = [
   {
     needle: 'window.JoanMP?.tick(player, current, now);',
-    value: 'window.JoanMP?.tick(player, current, now, time, effects, projectiles);'
+    value: 'window.JoanMP?.tick(player, current, now, time, effects, projectiles, () => player ? v38HeroSpec() : null, world);'
   },
   {
     needle: 'if (!F.noFx) v38DrawEffectsTop();',
@@ -34,6 +34,10 @@ const EDITS = [
        draw: peer.action?.weapon === 'bow' ? Math.sin((peer.action?.progress || 0) * Math.PI) : 0,
        casting: peer.action?.kind === 'skill', castP: peer.action?.progress || 0,
        lean: peer.action ? Math.sin((peer.action.progress || 0) * Math.PI) * 1.5 : 0`
+  },
+  {
+    needle: 'const spec = {\n      scale: 1.25, skin: look.skin, hair: look.hair, hairStyle: look.hairStyle,',
+    value: 'const spec = peer.look?.body && peer.look?.weapon ? peer.look : {\n      scale: 1.25, skin: look.skin, hair: look.hair, hairStyle: look.hairStyle,'
   }
 ];
 export function patchCoopGame(source) {
