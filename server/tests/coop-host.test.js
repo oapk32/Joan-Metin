@@ -61,11 +61,17 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
     const page = await (await fetch(base + '/coop/?code=' + code)).text();
     assert.match(page, /js\/coop-bridge\.js/);
     assert.doesNotMatch(page, /src="js\/mp-bridge\.js"/);
-    assert.equal((await fetch(base + '/coop/js/coop-bridge.js')).status, 200);
+    const bridgeResponse = await fetch(base + '/coop/js/coop-bridge.js');
+    assert.equal(bridgeResponse.status, 200);
+    assert.equal(bridgeResponse.headers.get('cache-control'), 'no-store', 'new gear bridge must not be cached');
+    assert.match(await bridgeResponse.text(), /lastLookPublished/);
     assert.equal((await fetch(base + '/etc/passwd')).status, 404);
-    const script = await (await fetch(base + '/coop/js/game.js')).text();
+    const gameResponse = await fetch(base + '/coop/js/game.js');
+    assert.equal(gameResponse.headers.get('cache-control'), 'no-store', 'patched v134 script must not be cached');
+    const script = await gameResponse.text();
     assert.match(script, /want = clamp\(\(\(r.width \|\| W\) \* dpr\) \/ W, 1, 1\);/);
     assert.match(script, /getRemoteVisuals\(current\)/);
+    assert.match(script, /peer\.look\?\.body && peer\.look\?\.weapon/);
     assert.match(script, /window\.JoanMP\?\.tick\(player, current, now, time, effects, projectiles, \(\) => player \? v38HeroSpec\(\) : null, world\)/);
 
     const wsPath = 'ws://127.0.0.1:' + port + '/coop-ws?code=';
