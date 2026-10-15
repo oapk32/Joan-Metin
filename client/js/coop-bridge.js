@@ -27,6 +27,28 @@
   let knownEffects = new WeakSet();
   let visualEvents = [];
   let lastVisual = 0;
+  let lastLookSent = 0, lastLookJson = '';
+  const LOOK_KEYS = new Set(['scale', 'skin', 'hair', 'hairStyle', 'legs', 'boots', 'bootTrim',
+    'body', 'sleeve', 'mask', 'plusGlow', 'build', 'look', 'stance', 'agile', 'darkHand',
+    'helmet', 'weapon', 'offhand', 'wings', 'v95Robe', 'shape', 'light', 'dark', 'trim',
+    'tier', 'pauldron', 'spikes', 'cape', 'collar', 'skirt', 'cls', 'armor', 'p9',
+    'gold', 'hood', 'hoodCol', 'type', 'plus9', 'kind', 'metal', 'glow', 'hero',
+    'fire', 'demon', 'hell', 'v123Aura', 'fade', 'col']);
+  function publicLook(value, depth = 0) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || depth > 4) return null;
+    const out = {};
+    for (const [key, v] of Object.entries(value)) {
+      if (!LOOK_KEYS.has(key)) continue; // Item IDs, names, stats and inventories never leave this browser.
+      if (typeof v === 'boolean') out[key] = v;
+      else if (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 100) out[key] = v;
+      else if (typeof v === 'string' && /^[a-zA-Z0-9#_-]{1,32}$/.test(v)) out[key] = v;
+      else if (v && typeof v === 'object') {
+        const nested = publicLook(v, depth + 1);
+        if (nested) out[key] = nested;
+      }
+    }
+    return out;
+  }
   const status = message => { indicator.textContent = message; };
   status(code ? 'CO-OP: připojuji...' : 'CO-OP: chybí kód místnosti v odkazu');
   function receive(event) {
@@ -53,7 +75,7 @@
         const y = Math.max(0, Math.min(660, p.y));
         if (!old) {
           players.set(p.id, { x, y, tx: x, ty: y, dir: p.dir, name: p.name,
-            cls: p.cls, action: p.action || null, shots: Array.isArray(p.shots) ? p.shots : [],
+            cls: p.cls, look: p.look || null, action: p.action || null, shots: Array.isArray(p.shots) ? p.shots : [],
             walk: 0, moving: 0, sampledAt: now, updatedAt: now });
         } else {
           if (Math.hypot(x - old.x, y - old.y) > 260) {
@@ -62,6 +84,7 @@
           old.tx = x; old.ty = y;
           old.dir = Number.isFinite(p.dir) ? p.dir : old.dir;
           old.cls = p.cls;
+          if (p.look && typeof p.look === 'object') old.look = p.look;
           old.name = p.name.slice(0, 24);
           old.action = p.action || null;
           old.shots = Array.isArray(p.shots) ? p.shots : [];
@@ -128,7 +151,7 @@
     return result;
   }
 
-  function tick(player, room, now, gameTime, effects = [], projectiles = []) {
+  function tick(player, room, now, gameTime, effects = [], projectiles = [], makeLook = null, world = null) {
     samples++;
     if (now - sampleAt >= 1000) {
       fps = Math.round(samples * 1000 / (now - sampleAt));
@@ -141,6 +164,15 @@
       knownEffects = new WeakSet();
     }
     if (!socket || socket.readyState !== WebSocket.OPEN || !connected) return;
+    if (player && typeof makeLook === 'function' && now - lastLookSent >= 850 && socket.bufferedAmount < 32768) {
+      lastLookSent = now;
+      const look = publicLook(makeLook());
+      const json = JSON.stringify(look);
+      if (look && json.length < 3000 && json !== lastLookJson) {
+        lastLookJson = json;
+        socket.send(JSON.stringify({ type: 'look', look }));
+      }
+    }
     if (now - lastInput >= 50 && socket.bufferedAmount < 32768) {
       lastInput = now;
       const active = !!player && Number.isFinite(player.x) && Number.isFinite(player.y);
