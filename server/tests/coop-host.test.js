@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { WebSocket } from 'ws';
+import { fileURLToPath } from 'node:url';
 
 async function getPort() {
   const server = net.createServer();
@@ -50,7 +51,7 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
   const code = 'previewcooptesttoken1234567890';
   const base = 'http://127.0.0.1:' + port;
   const child = spawn(process.execPath, ['coop-host.js'], {
-    cwd: new URL('..', import.meta.url).pathname,
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: { ...process.env, COOP_PORT: String(port), COOP_ROOM_CODE: code, COOP_BIND_HOST: '127.0.0.1' },
     stdio: 'ignore'
   });
