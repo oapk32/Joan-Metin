@@ -99,6 +99,11 @@ try {
       x.mobs.length > 0 && x.mobs.some(m => !m.dead) &&
       y.mobs.length === x.mobs.length;
   }, 'server-clock respawn both clients', 20000);
+  // Sample routes across the original continents and late boss arenas,
+  // not just the first two monster zones.
+  for (const sampleRoom of [3, 8, 14, 29, 53]) {
+    await enterBoth(a, b, sampleRoom);
+  }
   assert.deepEqual(errors, [], 'no uncaught errors in two actual v134 browsers');
   console.log('COOP two-browser shared map 1/2 and respawn checks passed');
   await a.context.close();
