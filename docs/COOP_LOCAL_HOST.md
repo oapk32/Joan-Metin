@@ -3,6 +3,15 @@
 **Tato větev je pracovní test, ne stabilní CO-OP vydání.** Zůstává oddělená od
 `coop-local-host`, `multiplayer-dev` a původního singleplayeru.
 
+Nejbezpečnější Windows test: stáhni ZIP
+https://github.com/oapk32/Joan-Metin/archive/refs/heads/coop-shared-world-wip.zip
+do **nové složky** a dvojklikem spusť `SPUSTIT_TEST_SDILENYCH_MAP.cmd`.
+Test běží na **127.0.0.1:4784**, tedy nezastaví ani nepřepíše stávající
+CO-OP na 3784. Jde o samostatný origin úložiště v prohlížeči; vytvoř
+nové testovací postavy. Na druhém PC je třeba nový tunel
+`cloudflared tunnel --url http://127.0.0.1:4784`. Testovací kód vypíše
+spouštěč. `COOP_WORLD_BROWSER_TEST` nespouštěj ručně.
+
 - Každá aktivní mapa od 0 do 120 má vlastní přidělený prohlížeč simulující
   místní monstra a metiny. Hostitel mapy vysílá stav a ostatní hráči jej přebírají.
   Když hostitel mapu opustí, vlastnictví převezme další aktivní hráč.
