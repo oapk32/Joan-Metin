@@ -59,12 +59,12 @@ const EDITS = [
     value: 'for (let m of (window.JoanMP?.isWorldFollower(current) ? [] : [...world.mobs])) {'
   },
   {
-    needle: "  function hit(m, damage, kind = 'basic') {\\n    let egg =",
-    value: "  function hit(m, damage, kind = 'basic') {\\n    if (window.JoanMP?.routeHit(current, m, damage, kind)) return 0;\\n    let egg ="
+    needle: "  function hit(m, damage, kind = 'basic') {\n    let egg =",
+    value: "  function hit(m, damage, kind = 'basic') {\n    if (window.JoanMP?.routeHit(current, m, damage, kind)) return 0;\n    let egg ="
   },
   {
-    needle: '  function advanceRespawn() {\\n    if (current === 35',
-    value: '  function advanceRespawn() {\\n    if (window.JoanMP?.isWorldFollower(current)) return;\\n    if (current === 35'
+    needle: '  function advanceRespawn() {\n    if (current === 35',
+    value: '  function advanceRespawn() {\n    if (window.JoanMP?.isWorldFollower(current)) return;\n    if (current === 35'
   }
 ];
 export function patchCoopGame(source) {
