@@ -6,8 +6,10 @@ import { randomBytes } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
+import { createAudioAssets } from './audio-assets.js';
 
 const CLIENT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'client');
+const audioAssets = createAudioAssets();
 const PORT = Number(process.env.COOP_PORT || 3784);
 const BIND = process.env.COOP_BIND_HOST || '127.0.0.1';
 const CODE = process.env.COOP_ROOM_CODE || randomBytes(18).toString('base64url');
@@ -31,6 +33,15 @@ const server = http.createServer((req, res) => {
     res.setHeader('Referrer-Policy', 'no-referrer');
     if (!['GET', 'HEAD'].includes(req.method)) return res.writeHead(405).end();
     if (path === '/health') return res.writeHead(200).end('ok');
+    // Reuse v134 lazy-audio manifest instead of transferring 7MB per player.
+    if (path === '/coop/js/audio-data.js') {
+      audioAssets.serve(req, res, '/joan/js/audio-data.js');
+      return;
+    }
+    if (path.startsWith('/joan/audio/')) {
+      audioAssets.serve(req, res, path);
+      return;
+    }
     if (path === '/') return res.writeHead(302, { location: '/coop/' }).end();
     if (path === '/coop/' || path === '/coop/index.html') {
       const text = await readFile(join(CLIENT, 'index.html'), 'utf8');
