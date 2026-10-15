@@ -28,8 +28,9 @@ Než ji otevřeš, exportuj zálohu všech postav.
 1. Stáhni tuto větev projektu nebo ji otevři v oddělené složce. Nezasahuj do Oracle.
 2. Měj nainstalovaný Node.js 22 nebo novější.
 3. Spusť dvojklikem soubor SPUSTIT_COOP.cmd.
-4. V terminálu se zobrazí odkaz s náhodným kódem místnosti. Otevři jej na
-   hostitelském PC jako první. Místnost pojme maximálně čtyři hráče.
+4. Skript automaticky otevře hostitelskou hru v prohlížeči a zároveň
+   spustí oddělené okno se serverem. To serverové okno nech otevřené.
+   Náhodný kód místnosti najdeš i v okně spouštěče. Místnost má limit 4 hráčů.
 5. V nabídce Postavy vyber vlastní uloženou postavu.
 
 ## Jak použít staré singleplayer postavy
