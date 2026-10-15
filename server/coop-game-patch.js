@@ -87,7 +87,7 @@ export function patchCoopGame(source, { worldBrowserTest = false } = {}) {
         stones: (world?.stones || []).map(m => ({ id: m.id, hp: m.hp, dead: m.dead })),
         respawn: world?.respawnAt == null ? null : Math.max(0, world.respawnAt - time)
       }),
-      room: n => { if (player && Number.isInteger(n) && ROOM[n]) enterRoom(n, false, true); },
+      room: n => { if (player && Number.isInteger(n) && ROOM[n]) { enterRoom(n, false, true); player.invincible = time + 3600; } },
       clear: () => {
         for (const m of [...(world?.mobs || []), ...(world?.stones || [])]) { m.dead = true; m.hp = 0; }
         if (world) { world.clear = true; world.respawnAt = time + 0.9; }
