@@ -107,8 +107,9 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
       shots: [{ x: 400, y: 330, vx: 720, vy: 0, life: 0.4, col: '#ff8888',
         owner: 'enemy', style: 'magic', variant: 'dragonShot' }]
     };
-    host.send(JSON.stringify(poseAndShot));
-    const replicated = await new Promise((resolve, reject) => {
+    // A state packet sent within 40ms of the previous one is intentionally throttled.
+    await sleep(80);
+    const replicateWaiting = new Promise((resolve, reject) => {
       const timer = setTimeout(() => { guest.off('message', onMessage); reject(Error('No remote spell snapshot')); }, 4000);
       function onMessage(bytes) {
         let value;
@@ -120,6 +121,8 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
       }
       guest.on('message', onMessage);
     });
+    host.send(JSON.stringify(poseAndShot));
+    const replicated = await replicateWaiting;
     assert.equal(replicated.action.progress, 0.5);
     assert.equal(replicated.shots[0].variant, 'dragonShot');
     assert.equal(replicated.shots[0].owner, 'player');
