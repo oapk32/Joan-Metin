@@ -67,7 +67,7 @@ const EDITS = [
     value: '  function advanceRespawn() {\n    if (window.JoanMP?.isWorldFollower(current)) return;\n    if (current === 35'
   }
 ];
-export function patchCoopGame(source) {
+export function patchCoopGame(source, { worldBrowserTest = false } = {}) {
   let result = source;
   for (const { needle, value } of EDITS) {
     if (result.split(needle).length !== 2) throw new Error('CO-OP v134 anchor missing/duplicated: ' + needle);
@@ -75,5 +75,26 @@ export function patchCoopGame(source) {
   }
   const needle = 'want = clamp(((r.width || W) * dpr) / W, 1, 2);';
   if (result.split(needle).length !== 2) throw new Error('CO-OP renderer scaling anchor missing');
-  return result.replace(needle, 'want = clamp(((r.width || W) * dpr) / W, 1, 1);');
+  result = result.replace(needle, 'want = clamp(((r.width || W) * dpr) / W, 1, 1);');
+  // Private CI only, never exposed by the public Quick Tunnel configuration.
+  if (worldBrowserTest) {
+    const testNeedle = '    draw();\\n    requestAnimationFrame(loop);';
+    if (result.split(testNeedle).length !== 2) throw Error('CO-OP browser test anchor missing');
+    result = result.replace(testNeedle, `    window.__coopWorldTest = {
+      get: () => ({
+        room: current, cycle: world?.cycle || 0,
+        mobs: (world?.mobs || []).map(m => ({ id: m.id, x: m.x, y: m.y, hp: m.hp, dead: m.dead })),
+        stones: (world?.stones || []).map(m => ({ id: m.id, hp: m.hp, dead: m.dead })),
+        respawn: world?.respawnAt == null ? null : Math.max(0, world.respawnAt - time)
+      }),
+      room: n => { if (player && Number.isInteger(n) && ROOM[n]) enterRoom(n, false, true); },
+      clear: () => {
+        for (const m of [...(world?.mobs || []), ...(world?.stones || [])]) { m.dead = true; m.hp = 0; }
+        if (world) { world.clear = true; world.respawnAt = time + 0.9; }
+      }
+    };
+    draw();
+    requestAnimationFrame(loop);`);
+  }
+  return result;
 }
