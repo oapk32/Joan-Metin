@@ -3,7 +3,22 @@
 const EDITS = [
   {
     needle: 'window.JoanMP?.tick(player, current, now);',
-    value: 'window.JoanMP?.tick(player, current, now, time, effects, projectiles, () => player ? v38HeroSpec() : null, world);'
+    value: `window.JoanMP?.tick(player, current, now, time, effects, projectiles,
+      () => player ? v38HeroSpec() : null, world, {
+        receiveHit: (id, damage, kind) => {
+          const m = [...(world?.mobs || []), ...(world?.stones || [])].find(m => m.id === id && !m.dead);
+          if (m) hit(m, damage, kind);
+        },
+        rewardDeath: m => {
+          if (!m.dead && m.hp > 0) hit(m, Math.max(1, m.hp * 8), 'coopReward');
+        },
+        respawn: () => {
+          if (world && world.respawnAt != null) {
+            world.respawnAt = time;
+            advanceRespawn();
+          }
+        }
+      });`
   },
   {
     needle: 'if (!F.noFx) v38DrawEffectsTop();',
@@ -38,6 +53,18 @@ const EDITS = [
   {
     needle: 'const spec = {\n      scale: 1.25, skin: look.skin, hair: look.hair, hairStyle: look.hairStyle,',
     value: 'const spec = peer.look?.body && peer.look?.weapon ? peer.look : {\n      scale: 1.25, skin: look.skin, hair: look.hair, hairStyle: look.hairStyle,'
+  },
+  {
+    needle: 'for (let m of [...world.mobs]) {',
+    value: 'for (let m of (window.JoanMP?.isWorldFollower(current) ? [] : [...world.mobs])) {'
+  },
+  {
+    needle: "  function hit(m, damage, kind = 'basic') {\\n    let egg =",
+    value: "  function hit(m, damage, kind = 'basic') {\\n    if (window.JoanMP?.routeHit(current, m, damage, kind)) return 0;\\n    let egg ="
+  },
+  {
+    needle: '  function advanceRespawn() {\\n    if (current === 35',
+    value: '  function advanceRespawn() {\\n    if (window.JoanMP?.isWorldFollower(current)) return;\\n    if (current === 35'
   }
 ];
 export function patchCoopGame(source) {
