@@ -126,6 +126,31 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
     assert.equal(replicated.action.progress, 0.5);
     assert.equal(replicated.shots[0].variant, 'dragonShot');
     assert.equal(replicated.shots[0].owner, 'player');
+    // Appearance is a cosmetic v134 rig. No inventory, item IDs or mutable stats may leak.
+    const lookWaiting = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { guest.off('message', onLook); reject(Error('No equipped look')); }, 4000);
+      function onLook(bytes) {
+        let value;
+        try { value = JSON.parse(String(bytes)); } catch { return; }
+        const peer = value.type === 'peers' && value.players?.find(p => p.name === 'Host' && p.look?.weapon?.kind === 'sword');
+        if (!peer) return;
+        clearTimeout(timer); guest.off('message', onLook); resolve(peer.look);
+      }
+      guest.on('message', onLook);
+    });
+    host.send(JSON.stringify({ type: 'look', look: {
+      scale: 1.25, skin: '#e2b48c', body: { shape: 'plate', light: '#aaaaaa', tier: 2 },
+      weapon: { kind: 'sword', metal: '#bbaacc', plus9: true, id: 'PRIVATE-ITEM-ID' },
+      wings: { demon: true, id: 'PRIVATE-WINGS-ID' },
+      inventory: [{ id: 'PRIVATE-SAVE' }], look: { cls: 'sura', tier: 2 }
+    } }));
+    const look = await lookWaiting;
+    assert.equal(look.weapon.kind, 'sword');
+    assert.equal(look.weapon.plus9, true);
+    assert.equal(look.body.shape, 'plate');
+    assert.equal(look.wings.demon, true);
+    assert.ok(!JSON.stringify(look).includes('PRIVATE'), 'no item IDs, inventory or saves');
+
     await sleep(100);
     guest.send(JSON.stringify({ ...msg, room: 2 }));
     await sleep(250);
