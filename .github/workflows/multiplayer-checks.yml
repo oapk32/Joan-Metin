@@ -1,7 +1,7 @@
 name: Multiplayer preview checks
 on:
   push:
-    branches: [multiplayer-dev]
+    branches: [multiplayer-dev, coop-shared-world-wip]
   pull_request:
     branches: [multiplayer-dev]
 jobs:
