@@ -178,7 +178,7 @@ wss.on('connection', socket => {
         !Number.isFinite(msg.x) || msg.x < 0 || msg.x > 1100 ||
         !Number.isFinite(msg.y) || msg.y < 0 || msg.y > 660 ||
         !Number.isFinite(msg.dir) || Math.abs(msg.dir) > 7 ||
-        !['warrior', 'ninja', 'sura', 'shaman'].includes(msg.cls) ||
+        !['warrior', 'ninja', 'sura', 'shaman', 'lycan'].includes(msg.cls) ||
         !Number.isInteger(msg.level) || msg.level < 1 || msg.level > 200 ||
         typeof msg.name !== 'string' || msg.name.length > 24) return;
     state.last = Date.now();
