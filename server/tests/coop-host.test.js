@@ -74,6 +74,7 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
       type: 'state', active: true, room: 1, x: 320, y: 330, dir: 0,
       cls: 'sura', name: 'Tester', level: 85
     };
+    host.send(JSON.stringify({ ...msg, name: 'Host' }));
     guest.send(JSON.stringify(msg));
     const updated = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => { host.off('message', onMessage); reject(Error('No shared peer state')); }, 4000);
@@ -88,6 +89,7 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
     });
     assert.equal(updated.players[0].cls, 'sura');
     assert.equal(updated.players[0].level, 85);
+    await sleep(100);
     guest.send(JSON.stringify({ ...msg, room: 2 }));
     await sleep(250);
     const empty = await nextMessage(host, 'peers');
