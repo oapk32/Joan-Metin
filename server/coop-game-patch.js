@@ -18,6 +18,9 @@ const EDITS = [
           effects = remoteVisuals.effects;
           projectiles = remoteVisuals.shots;
           v38DrawEffectsTop();
+        } catch (error) {
+          // An unsupported cosmetic never breaks the singleplayer render loop.
+          console.warn('CO-OP remote visual skipped:', error);
         } finally {
           effects = localEffects;
           projectiles = localProjectiles;
