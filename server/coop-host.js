@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createAudioAssets } from './audio-assets.js';
 import { patchCoopGame } from './coop-game-patch.js';
+import { createCoopWorldSync } from './coop-world-sync.js';
 
 const CLIENT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'client');
 const audioAssets = createAudioAssets();
@@ -25,8 +26,9 @@ const ASSETS = new Map([
 ]);
 const MIME = { css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8' };
 const peers = new Map();
+const worldSync = createCoopWorldSync();
 let nextId = 1, hostId = null;
-const wss = new WebSocketServer({ noServer: true, maxPayload: 16384 });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 131072 });
 const server = http.createServer((req, res) => {
   (async () => {
     const path = new URL(req.url, 'http://localhost').pathname;
@@ -175,7 +177,8 @@ wss.on('connection', socket => {
   const id = String(nextId++);
   const isHost = hostId === null;
   if (isHost) hostId = id;
-  const state = { id, active: false, room: 0, x: 0, y: 0, dir: 0, name: '', cls: 'warrior', level: 1, action: null, shots: [], look: null, last: 0, lastFx: 0, lastLook: 0 };
+  const state = { id, active: false, room: 0, x: 0, y: 0, dir: 0, name: '', cls: 'warrior', level: 1, action: null, shots: [], look: null, last: 0, lastFx: 0, lastLook: 0, lastWorld: 0, lastHit: 0,
+    worldBootstrapRoom: -1, worldBootstrapOwner: null };
   peers.set(socket, state);
   send(socket, { type: 'welcome', id, host: isHost, max: 4 });
   broadcast({ type: 'count', count: peers.size });
@@ -191,6 +194,36 @@ wss.on('connection', socket => {
       if (JSON.stringify(msg.look || '').length > 3000) return;
       const look = cleanLook(msg.look);
       if (look && look.body && look.weapon && look.look) state.look = look;
+      return;
+    }
+    if (msg.type === 'world') {
+      const now = Date.now();
+      if (!state.active || !Number.isInteger(msg.room) || msg.room !== state.room ||
+          now - state.lastWorld < 220 || socket.bufferedAmount > 262144) return;
+      const updated = worldSync.publish(state.room, id, msg.world, peers);
+      if (!updated) return;
+      state.lastWorld = now;
+      for (const [otherSocket, other] of peers) if (otherSocket !== socket &&
+          other.active && other.room === state.room) {
+        send(otherSocket, { type: 'world', ...updated });
+      }
+      return;
+    }
+    if (msg.type === 'mobHit') {
+      const now = Date.now();
+      if (!state.active || now - state.lastHit < 60 || !Number.isSafeInteger(msg.id) ||
+          !Number.isFinite(msg.damage) || msg.damage <= 0 ||
+          typeof msg.kind !== 'string' || msg.kind.length > 32) return;
+      state.lastHit = now;
+      const room = worldSync.get(state.room);
+      if (!room?.world || room.ownerId === id) return;
+      const m = [...room.world.mobs, ...room.world.stones].find(m => m.id === msg.id && !m.dead && m.hp > 0);
+      if (!m || msg.damage > Math.max(100, m.maxHp * 4) || Math.hypot(m.x - state.x, m.y - state.y) > 900) return;
+      for (const [ownerSocket, ownerState] of peers) if (ownerState.id === room.ownerId) {
+        send(ownerSocket, { type: 'mobHit', room: state.room, id: m.id,
+          damage: msg.damage, kind: msg.kind.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) });
+        break;
+      }
       return;
     }
     if (msg.type === 'visual') {
@@ -215,6 +248,7 @@ wss.on('connection', socket => {
         !Number.isInteger(msg.level) || msg.level < 1 || msg.level > 200 ||
         typeof msg.name !== 'string' || msg.name.length > 24) return;
     state.last = Date.now();
+    if (state.room !== msg.room) { state.worldBootstrapRoom = -1; state.worldBootstrapOwner = null; }
     Object.assign(state, { active: msg.active, room: msg.room, x: msg.x, y: msg.y,
       dir: msg.dir, cls: msg.cls, level: msg.level, action: cleanAction(msg.action), shots: cleanShots(msg.shots),
       name: msg.name.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 24) });
@@ -226,7 +260,9 @@ wss.on('connection', socket => {
   });
 });
 const timer = setInterval(() => {
+  worldSync.refresh(peers);
   for (const [socket, viewer] of peers) {
+    const room = worldSync.get(viewer.room);
     const players = [];
     for (const other of peers.values()) if (other.id !== viewer.id &&
         other.active && other.room === viewer.room) {
@@ -234,7 +270,16 @@ const timer = setInterval(() => {
         name: other.name, cls: other.cls, level: other.level, look: other.look,
         action: other.action, shots: other.shots });
     }
-    send(socket, { type: 'peers', players, count: peers.size });
+    send(socket, { type: 'peers', players, count: peers.size,
+      worldOwnerId: room?.ownerId || null, hasWorldSnapshot: !!room?.world });
+    if (viewer.active && room?.world &&
+        (viewer.worldBootstrapRoom !== viewer.room || viewer.worldBootstrapOwner !== room.ownerId)) {
+      viewer.worldBootstrapRoom = viewer.room;
+      viewer.worldBootstrapOwner = room.ownerId;
+      send(socket, { type: 'world', ...room, bootstrap: true });
+    }
+    if (viewer.active && room?.respawnDue && room.ownerId === viewer.id)
+      send(socket, { type: 'worldRespawn', room: viewer.room, cycle: room.world?.cycle });
   }
 }, 65);
 server.listen(PORT, BIND, () => {
