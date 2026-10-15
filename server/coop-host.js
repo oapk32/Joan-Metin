@@ -146,11 +146,34 @@ function cleanShots(raw) {
   return shots;
 }
 
+// Public appearance is deliberately a rendering recipe, not equipment or save data.
+const LOOK_KEYS = new Set(['scale', 'skin', 'hair', 'hairStyle', 'legs', 'boots', 'bootTrim',
+  'body', 'sleeve', 'mask', 'plusGlow', 'build', 'look', 'stance', 'agile', 'darkHand',
+  'helmet', 'weapon', 'offhand', 'wings', 'v95Robe', 'shape', 'light', 'dark', 'trim',
+  'tier', 'pauldron', 'spikes', 'cape', 'collar', 'skirt', 'cls', 'armor', 'p9',
+  'gold', 'hood', 'hoodCol', 'type', 'plus9', 'kind', 'metal', 'glow', 'hero',
+  'fire', 'demon', 'hell', 'v123Aura', 'fade', 'col']);
+function cleanLook(input, depth = 0) {
+  if (!input || typeof input !== 'object' || Array.isArray(input) || depth > 4) return null;
+  const out = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!LOOK_KEYS.has(key)) continue;
+    if (typeof value === 'boolean') out[key] = value;
+    else if (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 100) out[key] = value;
+    else if (typeof value === 'string' && /^[a-zA-Z0-9#_-]{1,32}$/.test(value)) out[key] = value;
+    else if (value && typeof value === 'object') {
+      const nested = cleanLook(value, depth + 1);
+      if (nested) out[key] = nested;
+    }
+  }
+  return out;
+}
+
 wss.on('connection', socket => {
   const id = String(nextId++);
   const isHost = hostId === null;
   if (isHost) hostId = id;
-  const state = { id, active: false, room: 0, x: 0, y: 0, dir: 0, name: '', cls: 'warrior', level: 1, action: null, shots: [], last: 0, lastFx: 0 };
+  const state = { id, active: false, room: 0, x: 0, y: 0, dir: 0, name: '', cls: 'warrior', level: 1, action: null, shots: [], look: null, last: 0, lastFx: 0, lastLook: 0 };
   peers.set(socket, state);
   send(socket, { type: 'welcome', id, host: isHost, max: 4 });
   broadcast({ type: 'count', count: peers.size });
@@ -160,6 +183,14 @@ wss.on('connection', socket => {
     try { msg = JSON.parse(String(bytes)); } catch { return; }
     if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
     if (msg.type === 'ping' && Number.isSafeInteger(msg.t)) return send(socket, { type: 'pong', t: msg.t });
+    if (msg.type === 'look') {
+      if (Date.now() - state.lastLook < 600) return;
+      state.lastLook = Date.now();
+      if (JSON.stringify(msg.look || '').length > 3000) return;
+      const look = cleanLook(msg.look);
+      if (look && look.body && look.weapon && look.look) state.look = look;
+      return;
+    }
     if (msg.type === 'visual') {
       const now = Date.now();
       if (!state.active || now - state.lastFx < 35 || !Array.isArray(msg.effects) || msg.effects.length > 12) return;
@@ -198,7 +229,8 @@ const timer = setInterval(() => {
     for (const other of peers.values()) if (other.id !== viewer.id &&
         other.active && other.room === viewer.room) {
       players.push({ id: other.id, x: other.x, y: other.y, dir: other.dir,
-        name: other.name, cls: other.cls, level: other.level, action: other.action, shots: other.shots });
+        name: other.name, cls: other.cls, level: other.level, look: other.look,
+        action: other.action, shots: other.shots });
     }
     send(socket, { type: 'peers', players, count: peers.size });
   }
