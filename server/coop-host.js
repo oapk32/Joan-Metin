@@ -7,6 +7,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createAudioAssets } from './audio-assets.js';
+import { patchCoopGame } from './coop-game-patch.js';
 
 const CLIENT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'client');
 const audioAssets = createAudioAssets();
@@ -25,7 +26,7 @@ const ASSETS = new Map([
 const MIME = { css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8' };
 const peers = new Map();
 let nextId = 1, hostId = null;
-const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 16384 });
 const server = http.createServer((req, res) => {
   (async () => {
     const path = new URL(req.url, 'http://localhost').pathname;
@@ -60,9 +61,7 @@ const server = http.createServer((req, res) => {
     if (path === '/coop/js/game.js') {
       const src = await readFile(file, 'utf8');
       // Optimize only this CO-OP endpoint; singleplayer asset remains untouched.
-      const needle = 'want = clamp(((r.width || W) * dpr) / W, 1, 2);';
-      if (src.split(needle).length !== 2) throw Error('Renderer patch no longer matches game.js');
-      const body = src.replace(needle, 'want = clamp(((r.width || W) * dpr) / W, 1, 1);');
+      const body = patchCoopGame(src);
       res.writeHead(200, headers);
       return res.end(req.method === 'HEAD' ? '' : body);
     }
@@ -96,20 +95,83 @@ server.on('upgrade', (req, socket, head) => {
     wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws));
   } catch { socket.destroy(); }
 });
+
+// Only finite, tightly bounded cosmetic data may cross players' browsers.
+const FX_TYPES = new Set(['castStart', 'ring', 'whirl', 'whirlCut', 'spectralDaggers',
+  'dragonWhirl36', 'dragonWhirlImpact', 'slash', 'thrust', 'frontalBurst',
+  'ambushPunch', 'variantImpact', 'fireArrowBlast', 'poisonArrowImpact',
+  'arrowRain', 'lightning', 'suraFlames', 'dragonBreath', 'dispelRelease',
+  'dispelImpact', 'fingerImpact', 'fingerClawHit', 'fearBloom', 'chainArc',
+  'perfectLink', 'bowRelease', 'v38Release', 'spellBloom', 'weaponArc']);
+const FX_NUMBERS = ['x', 'y', 'life', 'max', 'a', 'radius', 'range', 'half', 'width',
+  'turns', 'count', 'r', 'dragonSize', 'fxScale', 'clawHalfWidth', 'spellIndex'];
+const FX_STRINGS = ['col', 'rankColor', 'spellStage', 'spellClass', 'spellType',
+  'shape', 'owner', 'variant'];
+function cleanEffect(raw) {
+  if (!raw || typeof raw !== 'object' || !FX_TYPES.has(raw.type) ||
+      !Number.isFinite(raw.x) || raw.x < -150 || raw.x > 1250 ||
+      !Number.isFinite(raw.y) || raw.y < -150 || raw.y > 800 ||
+      !Number.isFinite(raw.life) || raw.life <= 0 || raw.life > 8 ||
+      !Number.isFinite(raw.max) || raw.max <= 0 || raw.max > 8) return null;
+  const e = { type: raw.type };
+  for (const key of FX_NUMBERS) if (Number.isFinite(raw[key]) && Math.abs(raw[key]) < 10000) e[key] = raw[key];
+  for (const key of FX_STRINGS) if (typeof raw[key] === 'string' && raw[key].length <= 32 &&
+      /^[a-zA-Z0-9#_-]+$/.test(raw[key])) e[key] = raw[key];
+  return e;
+}
+function cleanAction(a) {
+  if (!a || !['basic', 'skill'].includes(a.kind) ||
+      !Number.isFinite(a.progress) || a.progress < 0 || a.progress > 1 ||
+      !Number.isFinite(a.angle) || Math.abs(a.angle) > 7) return null;
+  return { kind: a.kind, progress: a.progress, angle: a.angle,
+    weapon: typeof a.weapon === 'string' ? a.weapon.slice(0, 20) : '' };
+}
+function cleanShots(raw) {
+  if (!Array.isArray(raw)) return [];
+  const shots = [];
+  for (const p of raw.slice(0, 10)) {
+    if (!p || !Number.isFinite(p.x) || p.x < -80 || p.x > 1180 ||
+        !Number.isFinite(p.y) || p.y < -80 || p.y > 740 ||
+        !Number.isFinite(p.vx) || Math.abs(p.vx) > 1800 ||
+        !Number.isFinite(p.vy) || Math.abs(p.vy) > 1800 ||
+        !Number.isFinite(p.life) || p.life <= 0 || p.life > 12) continue;
+    const o = { owner: 'player', x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: p.life };
+    for (const k of ['scale', 'fxScale', 'clawHalfWidth', 'spellIndex'])
+      if (Number.isFinite(p[k]) && Math.abs(p[k]) < 250) o[k] = p[k];
+    for (const k of ['style', 'variant', 'spellClass', 'spellType', 'spellStage', 'col', 'rankColor'])
+      if (typeof p[k] === 'string' && p[k].length < 32 && /^[a-zA-Z0-9#_-]+$/.test(p[k])) o[k] = p[k];
+    for (const k of ['skill', 'chainLightning']) if (typeof p[k] === 'boolean') o[k] = p[k];
+    shots.push(o);
+  }
+  return shots;
+}
+
 wss.on('connection', socket => {
   const id = String(nextId++);
   const isHost = hostId === null;
   if (isHost) hostId = id;
-  const state = { id, active: false, room: 0, x: 0, y: 0, dir: 0, name: '', cls: 'warrior', level: 1, last: 0 };
+  const state = { id, active: false, room: 0, x: 0, y: 0, dir: 0, name: '', cls: 'warrior', level: 1, action: null, shots: [], last: 0, lastFx: 0 };
   peers.set(socket, state);
   send(socket, { type: 'welcome', id, host: isHost, max: 4 });
   broadcast({ type: 'count', count: peers.size });
   socket.on('message', bytes => {
-    if (bytes.length > 1024) return;
+    if (bytes.length > 16384) return;
     let msg;
     try { msg = JSON.parse(String(bytes)); } catch { return; }
     if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
     if (msg.type === 'ping' && Number.isSafeInteger(msg.t)) return send(socket, { type: 'pong', t: msg.t });
+    if (msg.type === 'visual') {
+      const now = Date.now();
+      if (!state.active || now - state.lastFx < 35 || !Array.isArray(msg.effects) || msg.effects.length > 12) return;
+      state.lastFx = now;
+      const effects = msg.effects.map(cleanEffect).filter(Boolean);
+      if (!effects.length) return;
+      for (const [otherSocket, otherState] of peers) {
+        if (otherSocket !== socket && otherState.active && otherState.room === state.room)
+          send(otherSocket, { type: 'visual', from: id, room: state.room, effects });
+      }
+      return;
+    }
     if (msg.type !== 'state' || Date.now() - state.last < 40) return;
     if (typeof msg.active !== 'boolean' ||
         !Number.isInteger(msg.room) || msg.room < 0 || msg.room > 120 ||
@@ -121,7 +183,7 @@ wss.on('connection', socket => {
         typeof msg.name !== 'string' || msg.name.length > 24) return;
     state.last = Date.now();
     Object.assign(state, { active: msg.active, room: msg.room, x: msg.x, y: msg.y,
-      dir: msg.dir, cls: msg.cls, level: msg.level,
+      dir: msg.dir, cls: msg.cls, level: msg.level, action: cleanAction(msg.action), shots: cleanShots(msg.shots),
       name: msg.name.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 24) });
   });
   socket.on('close', () => {
@@ -136,7 +198,7 @@ const timer = setInterval(() => {
     for (const other of peers.values()) if (other.id !== viewer.id &&
         other.active && other.room === viewer.room) {
       players.push({ id: other.id, x: other.x, y: other.y, dir: other.dir,
-        name: other.name, cls: other.cls, level: other.level });
+        name: other.name, cls: other.cls, level: other.level, action: other.action, shots: other.shots });
     }
     send(socket, { type: 'peers', players, count: peers.size });
   }
