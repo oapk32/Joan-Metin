@@ -57,7 +57,9 @@ const server = http.createServer((req, res) => {
     if (!rel) return res.writeHead(404).end('Not found');
     const file = resolve(CLIENT, rel);
     if (!file.startsWith(CLIENT + sep)) return res.writeHead(403).end();
-    const headers = { 'content-type': MIME[rel.split('.').pop()], 'cache-control': 'private, max-age=600' };
+    // Never cache CO-OP bridge or the dynamically patched game script across restarts.
+    const headers = { 'content-type': MIME[rel.split('.').pop()], 'cache-control':
+      (path === '/coop/js/game.js' || path === '/coop/js/coop-bridge.js') ? 'no-store' : 'private, max-age=600' };
     if (path === '/coop/js/game.js') {
       const src = await readFile(file, 'utf8');
       // Optimize only this CO-OP endpoint; singleplayer asset remains untouched.
