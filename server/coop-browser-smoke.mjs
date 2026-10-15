@@ -60,7 +60,16 @@ async function enterBoth(a, b, room) {
   await b.page.evaluate(room => window.__coopWorldTest.room(room), room);
   await until(async () => (await world(a.page))?.room === room &&
     (await world(b.page))?.room === room, 'both entered room ' + room);
-  // Within a short time, both browsers must render exactly the same mob IDs and HP.
+  // Wait for actual CO-OP ownership; coincidentally equal local mob IDs are NOT enough.
+  await until(async () => {
+    const x = await a.page.evaluate(() => window.JoanMP?.getCoopDebug());
+    const y = await b.page.evaluate(() => window.JoanMP?.getCoopDebug());
+    return x?.lastRoom === room && y?.lastRoom === room &&
+      !!x.worldOwnerId && x.worldOwnerId === y.worldOwnerId &&
+      (x.worldOwnerId === x.myId ? y.hasWorldSnapshot && y.worldUpdatedAt > 0 :
+        x.hasWorldSnapshot && x.worldUpdatedAt > 0);
+  }, 'both browsers connected to shared room ' + room, 20000);
+  // Position equality proves actual network snapshots rather than equal local spawn counters.
   await until(async () => {
     const x = await world(a.page), y = await world(b.page);
     return x?.mobs?.length > 0 && x.mobs.length === y?.mobs?.length &&
@@ -76,13 +85,16 @@ try {
   const b = await player('B');
   await enterBoth(a, b, 1);
   await enterBoth(a, b, 2);
-  const before = await world(a.page);
+  const aNet = await a.page.evaluate(() => window.JoanMP.getCoopDebug());
+  const owner = aNet.worldOwnerId === aNet.myId ? a : b;
+  const follower = owner === a ? b : a;
+  const before = await world(owner.page);
   assert.ok(before.mobs.length > 0, 'second map has monsters');
-  await a.page.evaluate(() => window.__coopWorldTest.clear());
-  await until(async () => (await world(b.page))?.mobs?.every(m => m.dead),
+  await owner.page.evaluate(() => window.__coopWorldTest.clear());
+  await until(async () => (await world(follower.page))?.mobs?.every(m => m.dead),
     'second-map kill synchronizes', 20000);
   await until(async () => {
-    const x = await world(a.page), y = await world(b.page);
+    const x = await world(owner.page), y = await world(follower.page);
     return x?.cycle > before.cycle && y?.cycle === x.cycle &&
       x.mobs.length > 0 && x.mobs.some(m => !m.dead) &&
       y.mobs.length === x.mobs.length;
