@@ -8,6 +8,7 @@ každý používá **svou existující singleplayer postavu**.
 
 - Hru hostuješ na svém Windows počítači (127.0.0.1:3784).
 - Každý hráč vidí jména, třídy, pozice a pohyb ostatních v mapě.
+- Vzdálení hráči nosí skutečné vizuální modely nasazené výstroje: brnění, helmy, boty, meče/luky, štíty, křídla a vybrané aury. Posílá se jen omezený vizuální popis bez ID předmětů, inventáře nebo uložených postav.
 - První fáze přenosu vizuálních efektů: gesta při sesílání, vybrané částicové efekty a projektily jiných hráčů. Využívají existující vykreslování v134, ale jsou čistě kosmetické.
 - Vizualizace kouzel běží odděleně od kolizí a poškození; zatím není zaručená kompletní věrnost všech kouzel včetně Sage Mode.
 - Lokální pohyb není řízen síťovými snapshoty. Ostatní hráči jsou interpolováni.
@@ -19,7 +20,7 @@ každý používá **svou existující singleplayer postavu**.
 ## Co ještě **nefunguje**
 
 - Společné HP monster, útoky, EXP, bossové, loot, Yang a společné odměny.
-- Synchronizace samotného PvE (každý prohlížeč stále simuluje svůj svět).
+- Synchronizace samotného PvE (každý prohlížeč stále simuluje svůj svět). Pouhé vzdálené překreslení monster bez společné autority není bezpečná náhrada synchronizace bojových stavů.
 - Bezpečná migrace inventáře do serverově ověřovaného společného postupu.
 
 Tato verze je **test společné přítomnosti a efektů kouzel, ne hotový CO-OP pro postup**.
