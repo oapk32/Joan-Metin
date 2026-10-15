@@ -1,7 +1,7 @@
 name: Multiplayer preview checks
 on:
   push:
-    branches: [multiplayer-dev]
+    branches: [multiplayer-dev, coop-shared-world-wip]
   pull_request:
     branches: [multiplayer-dev]
 jobs:
@@ -70,6 +70,9 @@ jobs:
         run: |
           npm install --no-save --no-audit --no-fund playwright@1.56.1
           npx playwright install --with-deps chromium
+      - name: CO-OP real-browser map and respawn test
+        working-directory: server
+        run: node coop-browser-smoke.mjs
       - name: Real Chromium browser smoke test
         working-directory: server
         env:

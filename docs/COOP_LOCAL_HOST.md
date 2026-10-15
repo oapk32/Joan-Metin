@@ -1,3 +1,40 @@
+# Experiment: společné mapy a respawn (POUZE coop-shared-world-wip)
+
+**Tato větev je pracovní test, ne stabilní CO-OP vydání.** Zůstává oddělená od
+`coop-local-host`, `multiplayer-dev` a původního singleplayeru.
+
+Nejbezpečnější Windows test: stáhni ZIP
+https://github.com/oapk32/Joan-Metin/archive/refs/heads/coop-shared-world-wip.zip
+do **nové složky** a dvojklikem spusť `SPUSTIT_TEST_SDILENYCH_MAP.cmd`.
+Test běží na **127.0.0.1:4784**, tedy nezastaví ani nepřepíše stávající
+CO-OP na 3784. Jde o samostatný origin úložiště v prohlížeči; vytvoř
+nové testovací postavy. Na druhém PC je třeba nový tunel
+`cloudflared tunnel --url http://127.0.0.1:4784`. Testovací kód vypíše
+spouštěč. `COOP_WORLD_BROWSER_TEST` nespouštěj ručně.
+
+- Každá aktivní mapa od 0 do 120 má vlastní přidělený prohlížeč simulující
+  místní monstra a metiny. Hostitel mapy vysílá stav a ostatní hráči jej přebírají.
+  Když hostitel mapu opustí, vlastnictví převezme další aktivní hráč.
+- Společný stav zahrnuje identity, pozice, HP a smrt nepřátel. Útoky ostatních
+  hráčů se přeposílají vlastníkovi mapy.
+- Server uchovává čas konce respawnu nezávisle na lokálním čase herního
+  prohlížeče a vyžádá novou vlnu. Obvyklý respawn je 25 sekund, bossovské
+  oblasti mají vlastní čas z v134.
+- Loot vzniká odděleně v jednotlivých prohlížečích. **Nejde o bezpečné
+  serverově ověřované rozdělení odměn**. Vlastník mapy stále provádí AI,
+  takže plnohodnotný skupinový aggro, všechny boss fáze, loot a quest credit
+  na všech mapách **nejsou potvrzené**.
+- Přenos stavu monster je předběžný, s větším síťovým provozem. Musí být
+  změřen výkon a otestováni bossové a zvláštní oblasti na dvou skutečných PC.
+- Před testem vždy exportuj zálohu postav. Experiment nepoužívej na
+  důležitých nezálohovaných singleplayer postavách.
+- Automatický dvouprohlížečový test (v izolovaných profilech):
+  `node coop-browser-smoke.mjs`. Vyžaduje Playwright Chromium, sám zapíná
+  soukromé testovací ovládací prvky. Pro běžný veřejný tunel nikdy
+  nenastavuj `COOP_WORLD_BROWSER_TEST=1`.
+
+---
+
 # Joan Metin CO-OP – lokální náhled (vizuální kouzla, fáze 1)
 
 Tato oddělená větev **není zatím hotové PvE CO-OP**. Jde o první bezpečný

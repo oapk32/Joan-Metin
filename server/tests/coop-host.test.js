@@ -72,7 +72,9 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
     assert.match(script, /want = clamp\(\(\(r.width \|\| W\) \* dpr\) \/ W, 1, 1\);/);
     assert.match(script, /getRemoteVisuals\(current\)/);
     assert.match(script, /peer\.look\?\.body && peer\.look\?\.weapon/);
-    assert.match(script, /window\.JoanMP\?\.tick\(player, current, now, time, effects, projectiles, \(\) => player \? v38HeroSpec\(\) : null, world\)/);
+    assert.match(script, /window\.JoanMP\?\.tick\(player, current, now, time, effects, projectiles,/);
+    assert.match(script, /isWorldFollower\(current\)/);
+    assert.match(script, /routeHit\(current, m, damage, kind\)/);
 
     const wsPath = 'ws://127.0.0.1:' + port + '/coop-ws?code=';
     await assert.rejects(connect(wsPath + 'wrong-token', base));
@@ -157,7 +159,30 @@ test('local CO-OP serves offline client, isolates host room and syncs visible pe
     assert.equal(look.wings.demon, true);
     assert.ok(!JSON.stringify(look).includes('PRIVATE'), 'no item IDs, inventory or saves');
 
-    await sleep(100);
+    // Per-room monsters follow the first active browser, regardless of map number.
+    const remoteWorld = nextMessage(guest, 'world');
+    host.send(JSON.stringify({ type: 'world', room: 1, world: {
+      cycle: 1, clear: false, remaining: 0,
+      mobs: [{ id: 17, type: 'dog', x: 400, y: 310, hp: 90, maxHp: 90,
+        dead: false, inventory: [{ id: 'NEVER-BROADCAST' }] }], stones: []
+    } }));
+    const shared = await remoteWorld;
+    assert.equal(shared.ownerId, '1');
+    assert.equal(shared.world.mobs[0].id, 17);
+    assert.ok(!JSON.stringify(shared).includes('NEVER-BROADCAST'));
+    const hitReceived = nextMessage(host, 'mobHit');
+    guest.send(JSON.stringify({ type: 'mobHit', id: 17, damage: 24, kind: 'basic' }));
+    const routed = await hitReceived;
+    assert.equal(routed.id, 17);
+    assert.equal(routed.damage, 24);
+    // An untrusted follower must never replace the shared monster snapshot.
+    guest.send(JSON.stringify({ type: 'world', room: 1, world: {
+      cycle: 1, clear: false, remaining: 0, mobs: [], stones: []
+    } }));
+    await sleep(240);
+    const still = nextMessage(host, 'peers');
+    await still;
+    // Separate map has a separate owner; changing maps never imports room 1's monsters.
     guest.send(JSON.stringify({ ...msg, room: 2 }));
     await sleep(250);
     const empty = await nextMessage(host, 'peers');
