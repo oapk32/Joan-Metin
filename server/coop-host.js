@@ -65,7 +65,7 @@ const server = http.createServer((req, res) => {
     if (path === '/coop/js/game.js') {
       const src = await readFile(file, 'utf8');
       // Optimize only this CO-OP endpoint; singleplayer asset remains untouched.
-      const body = patchCoopGame(src);
+      const body = patchCoopGame(src, { worldBrowserTest: process.env.COOP_WORLD_BROWSER_TEST === '1' });
       res.writeHead(200, headers);
       return res.end(req.method === 'HEAD' ? '' : body);
     }
