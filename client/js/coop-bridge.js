@@ -13,7 +13,7 @@
   const players = new Map();
   let socket, count = 0, host = false, connected = false, samples = 0, sampleAt = performance.now();
   let fps = 0, rtt = null, lastInput = 0, lastStatus = 0, lastPing = 0;
-  const classes = new Set(['warrior', 'ninja', 'sura', 'shaman']);
+  const classes = new Set(['warrior', 'ninja', 'sura', 'shaman', 'lycan']);
   const FX_TYPES = new Set(['castStart', 'ring', 'whirl', 'whirlCut', 'spectralDaggers',
     'dragonWhirl36', 'dragonWhirlImpact', 'slash', 'thrust', 'frontalBurst',
     'ambushPunch', 'variantImpact', 'fireArrowBlast', 'poisonArrowImpact',
