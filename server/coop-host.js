@@ -3,7 +3,7 @@ import http from 'node:http';
 import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createAudioAssets } from './audio-assets.js';
@@ -55,7 +55,7 @@ const server = http.createServer((req, res) => {
     const rel = ASSETS.get(path);
     if (!rel) return res.writeHead(404).end('Not found');
     const file = resolve(CLIENT, rel);
-    if (!file.startsWith(CLIENT + '/')) return res.writeHead(403).end();
+    if (!file.startsWith(CLIENT + sep)) return res.writeHead(403).end();
     const headers = { 'content-type': MIME[rel.split('.').pop()], 'cache-control': 'private, max-age=600' };
     if (path === '/coop/js/game.js') {
       const src = await readFile(file, 'utf8');
