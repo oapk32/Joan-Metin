@@ -372,5 +372,10 @@
     }
     return { effects, shots };
   }
-  window.JoanMP = { tick, getPeers, getRemoteVisuals, isWorldFollower, routeHit };
+  function getCoopDebug() {
+    return { myId, lastRoom, worldOwnerId, hasWorldSnapshot,
+      worldUpdatedAt, lastWorldSent, pendingRespawn, pendingWorldRevision: pendingWorld?.revision,
+      pendingHits: pendingHits.length };
+  }
+  window.JoanMP = { tick, getPeers, getRemoteVisuals, isWorldFollower, routeHit, getCoopDebug };
 })();
